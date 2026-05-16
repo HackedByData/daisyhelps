@@ -84,3 +84,8 @@ def test_session_store_remove():
 def test_session_store_remove_missing_is_noop():
     store = SessionStore()
     store.remove(uuid4())  # must not raise
+
+
+def test_session_current_indicator_task_default_none():
+    s = Session(session_id=uuid4())
+    assert s.current_indicator_task is None

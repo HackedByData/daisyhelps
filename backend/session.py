@@ -26,6 +26,7 @@ class Session:
     consumed_screenshots: int = 0
     status: Status = "idle"
     current_turn_task: Optional[asyncio.Task] = None
+    current_indicator_task: Optional[asyncio.Task] = None
     vad_buffer: Optional["VADBuffer"] = None
 
     def set_language(self, language: Language) -> None:
