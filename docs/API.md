@@ -226,3 +226,22 @@ Audio stops within ~200ms of `interrupt`. The server emits `audio_end` and then 
 6. Decode and queue `audio_chunk` bytes for playback at 24 kHz.
 7. On `screenshot_request`, capture the screen and send `screenshot`.
 8. To barge in: send `interrupt`; expect `audio_end` + `status:listening` within 200ms.
+
+## Vision flow (detailed)
+
+The server keeps at most one pending screenshot per session, with a 60-second TTL.
+
+```
+client ──{type:"screenshot","data":"<base64 png>"}──▶ server  (anytime)
+                                                        │ (stored with timestamp)
+client ──{type:"audio_chunk", ...}──▶ server          (user keeps talking)
+                                                        │ (utterance closed)
+server inspects session: fresh screenshot present?
+   ├─ yes → attach as Claude image block, route to Sonnet, mark consumed
+   └─ no  → if user mentioned visual cues, emit screenshot_request; route to Haiku
+```
+
+The "consumed" flag means the same screenshot is NEVER attached to two consecutive LLM calls. If the user keeps asking visual questions, the frontend must send a fresh screenshot.
+
+A consumed screenshot is gone — there is no "history" of screenshots in the conversation messages. Claude sees only the screenshot attached to the *current* user turn.
+

@@ -35,3 +35,14 @@ Each turn runs as `session.current_turn_task: asyncio.Task`. On `interrupt`, the
 
 ## Decisions
 See [DECISIONS.md](DECISIONS.md).
+
+## Vision flow
+
+The session holds at most one pending screenshot: `(bytes, datetime)`. TTL is 60 seconds.
+
+1. Client sends `screenshot` whenever it has one. Server validates the PNG magic bytes, decodes base64, stores `(bytes, datetime.utcnow())`.
+2. On the next LLM call:
+   - If the pending screenshot is fresh, attach it as an `image` content block on the current user message AND route to `claude-sonnet-4-6`. Mark consumed (clear from session).
+   - Otherwise, if the user's text mentions visual cues, emit `screenshot_request`; route to Haiku.
+3. The screenshot is never re-attached after it's consumed.
+
