@@ -18,3 +18,13 @@ def test_get_prompt_en():
 
 def test_get_prompt_es():
     assert get_prompt("es") == DAISY_PROMPT_ES
+
+
+def test_en_prompt_mentions_circle_highlight():
+    # The system prompt must mention the on-screen highlight so Daisy can
+    # introduce it once per session without sounding surprised.
+    assert "circle" in DAISY_PROMPT_EN.lower()
+
+
+def test_es_prompt_mentions_circle_highlight():
+    assert "círculo" in DAISY_PROMPT_ES.lower()
