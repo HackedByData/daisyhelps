@@ -4,8 +4,11 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Literal, Optional
+from typing import TYPE_CHECKING, Literal, Optional
 from uuid import UUID
+
+if TYPE_CHECKING:
+    from backend.pipeline.vad import VADBuffer
 
 Language = Literal["en", "es"]
 Status = Literal["idle", "listening", "thinking", "speaking"]
@@ -23,6 +26,7 @@ class Session:
     consumed_screenshots: int = 0
     status: Status = "idle"
     current_turn_task: Optional[asyncio.Task] = None
+    vad_buffer: Optional["VADBuffer"] = None
 
     def set_language(self, language: Language) -> None:
         self.language = language
