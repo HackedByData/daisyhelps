@@ -14,7 +14,10 @@ Build the **backend for Daisy Helps**, a voice AI companion for tech-novice and 
 
 **Demo task (hardcoded):** Help the user join a Zoom call with their doctor. Full flow: user says "I have a Zoom call with my doctor and I can't get in," Daisy asks to see the screen, then walks them through finding the Zoom link in their email, opening it, joining the meeting, and turning on camera and microphone — all by voice, with screenshots taken on demand to verify state.
 
-**Frontend timeline:** This spec covers the backend only. A separate frontend will be built later using a Claude design agent that consumes the backend API. `docs/API.md` is the contract for that future agent — it must be self-contained.
+**Frontend timeline:** This spec covers the backend only. A Claude design agent builds the frontend **in parallel** against the backend. To make parallel development safe:
+- `docs/API.md` is the contract; it is complete from Phase 0 (not filled in over time).
+- `GET /api/status` returns machine-readable readiness flags so the frontend can introspect which features are `live` vs `stubbed`.
+- The WebSocket handler accepts every documented message type from Phase 0; stubbed types return `error: not_yet_implemented` until their phase enables them. The protocol surface is stable from Day 0.
 
 ---
 

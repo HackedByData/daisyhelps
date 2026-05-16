@@ -12,6 +12,27 @@
 
 ---
 
+## Parallel frontend development model
+
+A Claude design agent builds the frontend **in parallel** with this backend. To make that work, the protocol surface and readiness state must be stable from Day 0:
+
+1. **`docs/API.md` is complete from Phase 0** — every endpoint, every message type, every error code documented before any pipeline code lands. The frontend agent wires against this doc, not the running server.
+2. **All WS message types are accepted from Phase 0** — implemented ones run their handler; not-yet-live ones return `{"type": "error", "code": "not_yet_implemented", "message": "<type> is not live in phase <N>"}`. The frontend sees the full protocol surface from Day 0.
+3. **`GET /api/status` returns a readiness JSON** — the frontend agent reads it programmatically to know which features are `live` vs `stubbed` without trial-and-error. Backed by `backend/readiness.py`, a single source of truth that this plan flips as each phase lands.
+4. **Each phase ends with a readiness flip + API.md verification step** — when a feature goes live, its flag changes from `"stubbed"` to `"live"`; if behavior diverged from API.md, the doc is amended in the same commit.
+
+**Task additions for parallel-dev support:**
+- Phase 0 picks up Tasks 3a (`backend/messages.py` + tests, moved from Phase 1), 3b (`backend/readiness.py` + `/api/status`), and 6a (full `docs/API.md`). Phase 0 Task 4 changes from "WebSocket echo" to "WebSocket stubbed dispatch."
+- Phase 1 Task 8 (messages.py) becomes a verify-only step since the work moved to Phase 0.
+- Phase 1 Task 17 (full API.md) similarly becomes verify-only.
+- Each phase's smoke test gets a final step that updates `backend/readiness.py` for the features that just went live.
+
+**Frontend agent connection summary (also in API.md):**
+- Local: `ws://localhost:8000/ws/{session_id}` and `http://localhost:8000/api/status`
+- Deployed: `wss://api.daisyhelps.com/ws/{session_id}` and `https://api.daisyhelps.com/api/status` (live after Phase 5)
+
+---
+
 ## File Structure
 
 Every file below is created or modified by a task in this plan. Each has one responsibility.
@@ -26,6 +47,7 @@ daisyhelps/                          # repo root
 │   ├── config.py                    # Settings (pydantic-settings) for env vars
 │   ├── logging_setup.py             # loguru configuration
 │   ├── messages.py                  # Pydantic models for every WS message type
+│   ├── readiness.py                 # Feature readiness flags; backs GET /api/status
 │   └── pipeline/
 │       ├── __init__.py              # empty
 │       ├── vad.py                   # VADBuffer wrapping silero-vad
@@ -384,411 +406,9 @@ git commit -m "phase-0: FastAPI app shell with /healthz, /, /test routes"
 
 ---
 
-### Task 4: WebSocket echo handler
+### Task 3a: WebSocket message Pydantic models + tests *(moved from Phase 1)*
 
-**Files:**
-- Modify: `backend/main.py`
-
-- [ ] **Step 1: Add the WebSocket route**
-
-Append to `backend/main.py` (after the `/test` route):
-
-```python
-from fastapi import WebSocket, WebSocketDisconnect
-
-
-@app.websocket("/ws/{session_id}")
-async def ws_endpoint(websocket: WebSocket, session_id: str):
-    await websocket.accept()
-    logger.info(f"WS connect session_id={session_id}")
-    await websocket.send_json({"type": "status", "state": "idle"})
-    try:
-        while True:
-            msg = await websocket.receive_json()
-            logger.debug(f"WS recv {msg.get('type')}")
-            # Phase-0 echo: send back whatever we received plus an echo wrapper
-            await websocket.send_json({"type": "echo", "received": msg})
-    except WebSocketDisconnect:
-        logger.info(f"WS disconnect session_id={session_id}")
-```
-
-Move the `from fastapi import WebSocket, WebSocketDisconnect` to the top of the file alongside the existing FastAPI imports if you prefer.
-
-- [ ] **Step 2: Manual smoke check**
-
-Run the server:
-```bash
-uvicorn backend.main:app --reload --port 8000
-```
-
-In another shell, use `wscat` (or any WS client) — or just verify the test page once Task 5 lands. For now, just confirm the server starts without error and prints the startup log line.
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add backend/main.py
-git commit -m "phase-0: WebSocket echo endpoint at /ws/{session_id}"
-```
-
----
-
-### Task 5: Debug test page (echo version)
-
-**Files:**
-- Create: `test_harness/test_page.html`
-
-- [ ] **Step 1: Write the page**
-
-This is the Phase 0 version — connect and echo only. Mic capture and audio playback come in Phase 1.
-
-```html
-<!DOCTYPE html>
-<!--
-  BACKEND DEBUG HARNESS — not the production frontend.
-  This page exists to verify the Daisy Helps backend without a real client.
--->
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>Daisy Helps — Backend Debug Harness</title>
-  <style>
-    body { font-family: -apple-system, system-ui, sans-serif; max-width: 760px; margin: 24px auto; padding: 0 16px; }
-    h1 { font-size: 18px; margin: 0 0 4px; }
-    p.warn { color: #b00; font-size: 13px; margin-top: 0; }
-    .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
-    input[type=text] { flex: 1; padding: 6px 8px; }
-    button { padding: 6px 12px; }
-    pre { background: #f5f5f5; padding: 12px; height: 360px; overflow: auto; font-size: 12px; }
-    .muted { color: #777; }
-  </style>
-</head>
-<body>
-  <h1>Daisy Helps — Backend Debug Harness</h1>
-  <p class="warn">⚠️ This is a debug tool, not the production frontend.</p>
-
-  <div class="row">
-    <label>Session ID:</label>
-    <input id="sid" type="text" />
-    <button id="connect">Connect</button>
-    <button id="disconnect" disabled>Disconnect</button>
-  </div>
-
-  <div class="row">
-    <input id="text" type="text" placeholder="Type a message and press Send" />
-    <button id="send" disabled>Send</button>
-  </div>
-
-  <pre id="log"></pre>
-
-  <script>
-    const sidInput = document.getElementById('sid');
-    const connectBtn = document.getElementById('connect');
-    const disconnectBtn = document.getElementById('disconnect');
-    const textInput = document.getElementById('text');
-    const sendBtn = document.getElementById('send');
-    const logEl = document.getElementById('log');
-
-    let ws = null;
-
-    sidInput.value = crypto.randomUUID();
-
-    function log(line) {
-      const ts = new Date().toISOString().slice(11, 23);
-      logEl.textContent += `[${ts}] ${line}\n`;
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-
-    connectBtn.onclick = () => {
-      const sid = sidInput.value.trim();
-      if (!sid) return;
-      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-      const url = `${proto}://${location.host}/ws/${sid}`;
-      ws = new WebSocket(url);
-      ws.onopen = () => {
-        log(`open ${url}`);
-        connectBtn.disabled = true;
-        disconnectBtn.disabled = false;
-        sendBtn.disabled = false;
-      };
-      ws.onmessage = (ev) => log(`<< ${ev.data}`);
-      ws.onclose = () => {
-        log('close');
-        ws = null;
-        connectBtn.disabled = false;
-        disconnectBtn.disabled = true;
-        sendBtn.disabled = true;
-      };
-      ws.onerror = (e) => log(`error ${e.message || e}`);
-    };
-
-    disconnectBtn.onclick = () => { if (ws) ws.close(); };
-
-    sendBtn.onclick = () => {
-      if (!ws) return;
-      const text = textInput.value;
-      if (!text) return;
-      const msg = { type: 'user_text', text };
-      ws.send(JSON.stringify(msg));
-      log(`>> ${JSON.stringify(msg)}`);
-      textInput.value = '';
-    };
-
-    textInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !sendBtn.disabled) sendBtn.click();
-    });
-  </script>
-</body>
-</html>
-```
-
-- [ ] **Step 2: Phase 0 smoke test**
-
-Run:
-```bash
-uvicorn backend.main:app --reload --port 8000
-```
-
-Open `http://localhost:8000/test` in your browser.
-
-1. The page loads with a UUID auto-populated in the session input.
-2. Click Connect. Log should show `open ws://localhost:8000/ws/<uuid>` then receive `{"type":"status","state":"idle"}`.
-3. Type "hello" in the message box and press Send. Log should show `>> {"type":"user_text","text":"hello"}` then `<< {"type":"echo","received":{"type":"user_text","text":"hello"}}`.
-4. Click Disconnect. Log should show `close`.
-
-If all four steps pass, Phase 0 echo path is good.
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add test_harness/test_page.html
-git commit -m "phase-0: debug test page (echo version)"
-```
-
----
-
-### Task 6: Initialize the five docs and the README
-
-**Files:**
-- Create: `README.md`
-- Create: `docs/ARCHITECTURE.md`
-- Create: `docs/API.md`
-- Create: `docs/RUNBOOK.md`
-- Create: `docs/DECISIONS.md`
-- Create: `docs/DEMO.md`
-
-Each starts with the section structure that later phases will fill in. The skeletons are not placeholders — they are the table of contents that grows in place.
-
-- [ ] **Step 1: Write `README.md`**
-
-```markdown
-# Daisy Helps — Backend
-
-Voice AI companion backend that helps tech-novice users (especially the elderly) through computer tasks one step at a time. Daisy listens by voice, sees the screen on demand via screenshots, and guides the user — she never takes actions for them.
-
-**This repo is the backend.** A separate frontend (built later with a Claude design agent) will connect via WebSocket.
-
-## Quick start
-
-```bash
-python -m venv .venv
-# PowerShell:  .venv\Scripts\Activate.ps1
-# Bash:        source .venv/Scripts/activate
-pip install -r requirements.txt
-cp .env.example .env   # then fill in real keys
-uvicorn backend.main:app --reload --port 8000
-```
-
-Open `http://localhost:8000/test` for the debug harness.
-
-## Docs
-
-- [API contract](docs/API.md) — the WebSocket protocol the frontend reads
-- [Architecture](docs/ARCHITECTURE.md)
-- [Runbook](docs/RUNBOOK.md) — local dev, env vars, deployment
-- [Decisions](docs/DECISIONS.md)
-- [Demo script](docs/DEMO.md)
-```
-
-- [ ] **Step 2: Write `docs/ARCHITECTURE.md` skeleton**
-
-```markdown
-# Architecture
-
-## Overview
-A FastAPI server holds a long-lived WebSocket per user. Each connection drives a streaming pipeline that turns user voice into Daisy voice, with vision attached when needed.
-
-## Components
-- **WebSocket handler** (`backend/main.py`) — accepts the connection, dispatches incoming messages, emits status + audio + text.
-- **Session** (`backend/session.py`) — per-connection state: language, conversation history, pending screenshot, current turn task.
-- **VAD** (`backend/pipeline/vad.py`) — Silero-based silence detection; yields complete utterances.
-- **STT** (`backend/pipeline/stt.py`) — Groq Whisper Large v3 Turbo behind a provider interface.
-- **LLM** (`backend/pipeline/llm.py`) — Claude Haiku 4.5 for text turns, Claude Sonnet 4.6 for screenshot turns.
-- **TTS** (`backend/pipeline/tts.py`) — ElevenLabs streaming, sentence-buffered.
-
-## Data flow
-```
-ws audio_chunk → VADBuffer → utterance → STT → transcript →
-LLM stream (Sonnet if pending screenshot < 60s else Haiku) →
-TTS sentence-buffered stream → audio_chunk messages → audio_end
-```
-
-## Latency budget
-End-of-user-speech → first audio byte: **< 2.5s**. Stream at every stage.
-
-## Decisions
-See [DECISIONS.md](DECISIONS.md).
-```
-
-- [ ] **Step 3: Write `docs/API.md` skeleton**
-
-```markdown
-# WebSocket API
-
-> This document is the contract for the frontend. It is self-contained.
-
-## Connection
-`wss://api.daisyhelps.com/ws/{session_id}` where `session_id` is a UUID v4 generated by the client.
-
-On open, the server sends:
-```json
-{"type": "status", "state": "idle"}
-```
-
-The client MUST send a `config` message before any audio or text.
-
-## Client → Server messages
-
-(Filled in by Phase 1 and 2.)
-
-## Server → Client messages
-
-(Filled in by Phase 1 and 2.)
-
-## Audio formats
-- In: 16 kHz mono 16-bit little-endian PCM, base64.
-- Out: 24 kHz mono PCM, base64, streamed.
-
-## Errors
-Every error has a `code` and a `message`.
-
-## Status
-Every state transition is announced: `idle → listening → thinking → speaking → idle`.
-```
-
-- [ ] **Step 4: Write `docs/RUNBOOK.md` skeleton**
-
-```markdown
-# Runbook
-
-## Local dev
-```bash
-python -m venv .venv
-# PowerShell:  .venv\Scripts\Activate.ps1
-# Bash:        source .venv/Scripts/activate
-pip install -r requirements.txt
-cp .env.example .env
-uvicorn backend.main:app --reload --port 8000
-```
-
-## Env vars
-| Name | Required | Notes |
-|---|---|---|
-| `ANTHROPIC_API_KEY` | yes | Claude (Haiku + Sonnet) |
-| `GROQ_API_KEY` | yes | Groq Whisper Large v3 Turbo |
-| `ELEVENLABS_API_KEY` | yes | TTS |
-| `ELEVENLABS_VOICE_ID_EN` | yes | English voice |
-| `ELEVENLABS_VOICE_ID_ES` | yes | Spanish voice |
-| `LOG_LEVEL` | no | DEBUG / INFO / WARNING / ERROR (default INFO) |
-
-## Tests
-```bash
-pytest -q
-```
-
-## Deployment
-(Phase 5 fills in.)
-
-## Troubleshooting
-(Filled in as we hit issues.)
-```
-
-- [ ] **Step 5: Write `docs/DECISIONS.md` skeleton**
-
-```markdown
-# Decisions
-
-A decision log. One paragraph per choice: context, decision, rationale, alternatives.
-
-## STT: Groq Whisper Large v3 Turbo
-**Context:** End-of-utterance to first audio byte budget is 2.5s.
-**Decision:** Use Groq Whisper Large v3 Turbo.
-**Rationale:** Roughly 3–5× faster than OpenAI Whisper at comparable accuracy.
-**Alternatives considered:** OpenAI Whisper (slower), local faster-whisper (heavier, no GPU on Render).
-**How to swap:** Add a new `STTProvider` subclass and change one line in `pipeline/stt.py`.
-
-(Later phases append more entries.)
-```
-
-- [ ] **Step 6: Write `docs/DEMO.md` skeleton**
-
-```markdown
-# Demo: Zoom with the doctor
-
-## Setup
-- User opens the test page.
-- Mic + screen-share permissions granted.
-
-## Script
-(Filled in at end of Phase 3.)
-
-## Failure modes
-(Filled in at end of Phase 3.)
-```
-
-- [ ] **Step 7: Commit**
-
-```bash
-git add README.md docs/ARCHITECTURE.md docs/API.md docs/RUNBOOK.md docs/DECISIONS.md docs/DEMO.md
-git commit -m "phase-0: initial docs skeletons + README"
-```
-
----
-
-### Task 7: Phase 0 smoke test and phase commit
-
-- [ ] **Step 1: Run the smoke test sequence**
-
-1. `uvicorn backend.main:app --reload --port 8000`
-2. `curl http://localhost:8000/healthz` → `{"status":"ok"}`
-3. Open `http://localhost:8000/test` in a browser.
-4. UUID auto-populated; click Connect; see `{"type":"status","state":"idle"}` in the log.
-5. Type "hello" and press Send. See the echo response.
-6. Disconnect. Server logs show clean disconnect.
-
-If all six steps pass, Phase 0 is done.
-
-- [ ] **Step 2: Final phase commit (if any uncommitted state)**
-
-```bash
-git status
-```
-
-If clean, no commit needed. If any leftover files, stage them and commit:
-
-```bash
-git add -A
-git commit -m "phase-0: scaffold complete"
-```
-
----
-
-# Phase 1 — Voice loop, no vision
-
-Goal: A full audio → response → audio loop with no screenshots. Daisy listens, transcribes, responds with Claude Haiku, speaks via ElevenLabs. Language toggle works. Unit tests for VAD / router / session / messages.
-
----
-
-### Task 8: WebSocket message Pydantic models + tests
+This was originally Phase 1 Task 8; it's needed in Phase 0 to support stubbed message dispatch.
 
 **Files:**
 - Create: `backend/messages.py`
@@ -882,7 +502,7 @@ Expected: ImportError on `backend.messages`.
 """Pydantic models for the WebSocket wire protocol."""
 from typing import Literal, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 Language = Literal["en", "es"]
@@ -895,7 +515,7 @@ class ConfigMessage(BaseModel):
 
 class AudioChunkMessage(BaseModel):
     type: Literal["audio_chunk"]
-    data: str  # base64 PCM 16kHz mono 16-bit LE
+    data: str
     sequence: int = 0
 
 
@@ -906,7 +526,7 @@ class UserTextMessage(BaseModel):
 
 class ScreenshotMessage(BaseModel):
     type: Literal["screenshot"]
-    data: str  # base64 PNG, no data: prefix
+    data: str
 
 
 class InterruptMessage(BaseModel):
@@ -953,7 +573,7 @@ def parse_client_message(raw: dict) -> ClientMessage:
     return cls.model_validate(raw)
 
 
-# --- Server → Client outgoing message helpers (just plain dicts on the wire) ---
+# --- Server → Client outgoing message helpers ---
 
 
 def status_msg(state: Literal["idle", "listening", "thinking", "speaking"]) -> dict:
@@ -990,14 +610,781 @@ def error_msg(code: str, message: str) -> dict:
 pytest tests/test_ws_messages.py -v
 ```
 
-Expected: all tests PASS.
+Expected: all PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add backend/messages.py tests/test_ws_messages.py
-git commit -m "phase-1: WS message models with parse_client_message + tests"
+git commit -m "phase-0: WS message Pydantic models + tests (parallel-dev prereq)"
 ```
+
+---
+
+### Task 3b: Readiness module + `GET /api/status` endpoint
+
+**Files:**
+- Create: `backend/readiness.py`
+- Modify: `backend/main.py`
+
+The frontend agent reads `/api/status` to know which protocol features are live. Each later phase flips flags.
+
+- [ ] **Step 1: Write `backend/readiness.py`**
+
+```python
+"""Feature readiness flags. Returned by GET /api/status.
+
+Each phase flips flags from STATUS_STUBBED to STATUS_LIVE as features land.
+The frontend agent reads this to know what to expect from the backend.
+
+This is the single source of truth — when in doubt, this dict wins.
+"""
+
+STATUS_LIVE = "live"
+STATUS_STUBBED = "stubbed"
+
+READINESS: dict = {
+    "service": "daisy-helps-backend",
+    "version": "0.1.0",
+    "phase": 0,
+    "phase_name": "scaffold",
+    "http": {
+        "GET /healthz": STATUS_LIVE,
+        "GET /": STATUS_LIVE,
+        "GET /test": STATUS_LIVE,
+        "GET /api/status": STATUS_LIVE,
+        "WS /ws/{session_id}": STATUS_LIVE,
+    },
+    "client_to_server": {
+        "config": STATUS_LIVE,
+        "audio_chunk": STATUS_STUBBED,
+        "user_text": STATUS_STUBBED,
+        "screenshot": STATUS_STUBBED,
+        "interrupt": STATUS_STUBBED,
+        "language_change": STATUS_STUBBED,
+        "end_session": STATUS_STUBBED,
+    },
+    "server_to_client": {
+        "status": STATUS_LIVE,
+        "error": STATUS_LIVE,
+        "transcript": STATUS_STUBBED,
+        "daisy_text": STATUS_STUBBED,
+        "audio_chunk": STATUS_STUBBED,
+        "audio_end": STATUS_STUBBED,
+        "screenshot_request": STATUS_STUBBED,
+    },
+}
+
+
+def is_live(category: str, key: str) -> bool:
+    return READINESS.get(category, {}).get(key) == STATUS_LIVE
+```
+
+- [ ] **Step 2: Add the `GET /api/status` route**
+
+In `backend/main.py`, add this route alongside `/healthz` and `/`:
+
+```python
+from backend.readiness import READINESS
+
+
+@app.get("/api/status")
+async def api_status():
+    return JSONResponse(READINESS)
+```
+
+(Add the import at the top of `main.py` with the other backend imports.)
+
+- [ ] **Step 3: Verify**
+
+Start the server:
+```bash
+uvicorn backend.main:app --reload --port 8000
+```
+
+In another shell:
+```bash
+curl http://localhost:8000/api/status
+```
+
+Expected: JSON payload showing `phase: 0`, all `http` keys `live`, only `config`/`status`/`error` `live` everywhere else.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add backend/readiness.py backend/main.py
+git commit -m "phase-0: backend/readiness.py + GET /api/status for parallel frontend agent"
+```
+
+---
+
+### Task 4: WebSocket handler with stubbed dispatch
+
+Replaces the originally-planned echo handler. Every documented message type is parsed; live ones run a real handler (in Phase 0, only `config`); not-yet-live ones return `error: not_yet_implemented` so the frontend agent can wire the full protocol from Day 0.
+
+**Files:**
+- Modify: `backend/main.py`
+
+- [ ] **Step 1: Add the WebSocket route**
+
+In `backend/main.py`, add at the top with the other FastAPI imports:
+
+```python
+from fastapi import WebSocket, WebSocketDisconnect
+from pydantic import ValidationError
+
+from backend.messages import (
+    ConfigMessage,
+    error_msg,
+    parse_client_message,
+    status_msg,
+)
+from backend.readiness import is_live
+```
+
+Then add the WS endpoint:
+
+```python
+@app.websocket("/ws/{session_id}")
+async def ws_endpoint(websocket: WebSocket, session_id: str):
+    await websocket.accept()
+    logger.info(f"WS connect session_id={session_id}")
+    await websocket.send_json(status_msg("idle"))
+
+    # Per-session local state (placeholder; replaced by SessionStore in Phase 1)
+    language = "en"
+
+    try:
+        while True:
+            raw = await websocket.receive_json()
+            try:
+                msg = parse_client_message(raw)
+            except (ValidationError, ValueError) as e:
+                await websocket.send_json(error_msg("bad_message", str(e)))
+                continue
+
+            mtype = msg.type
+            if not is_live("client_to_server", mtype):
+                await websocket.send_json(
+                    error_msg("not_yet_implemented", f"{mtype} is not live in phase {0}")
+                )
+                continue
+
+            # Live handlers (Phase 0 only handles `config`)
+            if isinstance(msg, ConfigMessage):
+                language = msg.language
+                logger.info(f"session={session_id} language={language}")
+                # Acknowledge by emitting a fresh status
+                await websocket.send_json(status_msg("idle"))
+
+    except WebSocketDisconnect:
+        logger.info(f"WS disconnect session_id={session_id}")
+```
+
+- [ ] **Step 2: Verify**
+
+Start the server. From the test page (Task 5 builds it next), connect and send:
+- `{"type": "config", "language": "en"}` → response: `{"type": "status", "state": "idle"}`
+- `{"type": "user_text", "text": "x"}` → response: `{"type": "error", "code": "not_yet_implemented", "message": "user_text is not live in phase 0"}`
+- `{"type": "garbage"}` → response: `{"type": "error", "code": "bad_message", ...}`
+
+(You can skip browser verification until Task 5 lands; just `uvicorn --reload` starts cleanly.)
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add backend/main.py
+git commit -m "phase-0: WS handler with stubbed dispatch (every message type accepted)"
+```
+
+---
+
+### Task 5: Debug test page (echo version)
+
+**Files:**
+- Create: `test_harness/test_page.html`
+
+- [ ] **Step 1: Write the page**
+
+This is the Phase 0 version — connect and echo only. Mic capture and audio playback come in Phase 1.
+
+```html
+<!DOCTYPE html>
+<!--
+  BACKEND DEBUG HARNESS — not the production frontend.
+  This page exists to verify the Daisy Helps backend without a real client.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Daisy Helps — Backend Debug Harness</title>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; max-width: 760px; margin: 24px auto; padding: 0 16px; }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    p.warn { color: #b00; font-size: 13px; margin-top: 0; }
+    .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+    input[type=text] { flex: 1; padding: 6px 8px; }
+    button { padding: 6px 12px; }
+    pre { background: #f5f5f5; padding: 12px; height: 360px; overflow: auto; font-size: 12px; }
+    .muted { color: #777; }
+  </style>
+</head>
+<body>
+  <h1>Daisy Helps — Backend Debug Harness</h1>
+  <p class="warn">⚠️ This is a debug tool, not the production frontend.</p>
+
+  <div class="row">
+    <label>Session ID:</label>
+    <input id="sid" type="text" />
+    <button id="connect">Connect</button>
+    <button id="disconnect" disabled>Disconnect</button>
+    <button id="status">Fetch /api/status</button>
+  </div>
+
+  <div class="row">
+    <input id="text" type="text" placeholder="Type a message and press Send" />
+    <button id="send" disabled>Send</button>
+  </div>
+
+  <pre id="log"></pre>
+
+  <script>
+    const sidInput = document.getElementById('sid');
+    const connectBtn = document.getElementById('connect');
+    const disconnectBtn = document.getElementById('disconnect');
+    const statusBtn = document.getElementById('status');
+    const textInput = document.getElementById('text');
+    const sendBtn = document.getElementById('send');
+    const logEl = document.getElementById('log');
+
+    let ws = null;
+
+    sidInput.value = crypto.randomUUID();
+
+    function log(line) {
+      const ts = new Date().toISOString().slice(11, 23);
+      logEl.textContent += `[${ts}] ${line}\n`;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    statusBtn.onclick = async () => {
+      try {
+        const r = await fetch('/api/status');
+        const j = await r.json();
+        log(`<< /api/status phase=${j.phase} ${j.phase_name}`);
+        log(JSON.stringify(j, null, 2));
+      } catch (e) {
+        log(`fetch /api/status failed: ${e.message}`);
+      }
+    };
+
+    connectBtn.onclick = () => {
+      const sid = sidInput.value.trim();
+      if (!sid) return;
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      const url = `${proto}://${location.host}/ws/${sid}`;
+      ws = new WebSocket(url);
+      ws.onopen = () => {
+        log(`open ${url}`);
+        connectBtn.disabled = true;
+        disconnectBtn.disabled = false;
+        sendBtn.disabled = false;
+      };
+      ws.onmessage = (ev) => log(`<< ${ev.data}`);
+      ws.onclose = () => {
+        log('close');
+        ws = null;
+        connectBtn.disabled = false;
+        disconnectBtn.disabled = true;
+        sendBtn.disabled = true;
+      };
+      ws.onerror = (e) => log(`error ${e.message || e}`);
+    };
+
+    disconnectBtn.onclick = () => { if (ws) ws.close(); };
+
+    sendBtn.onclick = () => {
+      if (!ws) return;
+      const text = textInput.value;
+      if (!text) return;
+      const msg = { type: 'user_text', text };
+      ws.send(JSON.stringify(msg));
+      log(`>> ${JSON.stringify(msg)}`);
+      textInput.value = '';
+    };
+
+    textInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !sendBtn.disabled) sendBtn.click();
+    });
+  </script>
+</body>
+</html>
+```
+
+- [ ] **Step 2: Phase 0 quick smoke (full one is in Task 7)**
+
+Run:
+```bash
+uvicorn backend.main:app --reload --port 8000
+```
+
+Open `http://localhost:8000/test`. Connect; you should see `{"type":"status","state":"idle"}`. Click "Fetch /api/status" — JSON should show `phase: 0`. Sending `user_text "hello"` should produce `<< error not_yet_implemented user_text is not live in phase 0` — this confirms the stubbed-dispatch contract for the frontend agent.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add test_harness/test_page.html
+git commit -m "phase-0: debug test page (connects, sends config, displays /api/status)"
+```
+
+---
+
+### Task 6: Initialize four docs and the README (API.md gets its own task)
+
+**Files:**
+- Create: `README.md`
+- Create: `docs/ARCHITECTURE.md`
+- Create: `docs/RUNBOOK.md`
+- Create: `docs/DECISIONS.md`
+- Create: `docs/DEMO.md`
+
+Each starts with the section structure that later phases fill in. **`docs/API.md` is built separately in Task 6a** — it gets the full contract from Day 0 so the parallel frontend agent can wire against it.
+
+- [ ] **Step 1: Write `README.md`**
+
+```markdown
+# Daisy Helps — Backend
+
+Voice AI companion backend that helps tech-novice users (especially the elderly) through computer tasks one step at a time. Daisy listens by voice, sees the screen on demand via screenshots, and guides the user — she never takes actions for them.
+
+**This repo is the backend.** A separate frontend (built later with a Claude design agent) will connect via WebSocket.
+
+## Quick start
+
+```bash
+python -m venv .venv
+# PowerShell:  .venv\Scripts\Activate.ps1
+# Bash:        source .venv/Scripts/activate
+pip install -r requirements.txt
+cp .env.example .env   # then fill in real keys
+uvicorn backend.main:app --reload --port 8000
+```
+
+Open `http://localhost:8000/test` for the debug harness.
+
+## Docs
+
+- [API contract](docs/API.md) — the WebSocket protocol the frontend reads
+- [Architecture](docs/ARCHITECTURE.md)
+- [Runbook](docs/RUNBOOK.md) — local dev, env vars, deployment
+- [Decisions](docs/DECISIONS.md)
+- [Demo script](docs/DEMO.md)
+```
+
+- [ ] **Step 2: Write `docs/ARCHITECTURE.md` skeleton**
+
+```markdown
+# Architecture
+
+## Overview
+A FastAPI server holds a long-lived WebSocket per user. Each connection drives a streaming pipeline that turns user voice into Daisy voice, with vision attached when needed.
+
+## Components
+- **WebSocket handler** (`backend/main.py`) — accepts the connection, dispatches incoming messages, emits status + audio + text.
+- **Session** (`backend/session.py`) — per-connection state: language, conversation history, pending screenshot, current turn task.
+- **VAD** (`backend/pipeline/vad.py`) — Silero-based silence detection; yields complete utterances.
+- **STT** (`backend/pipeline/stt.py`) — Groq Whisper Large v3 Turbo behind a provider interface.
+- **LLM** (`backend/pipeline/llm.py`) — Claude Haiku 4.5 for text turns, Claude Sonnet 4.6 for screenshot turns.
+- **TTS** (`backend/pipeline/tts.py`) — ElevenLabs streaming, sentence-buffered.
+
+## Data flow
+```
+ws audio_chunk → VADBuffer → utterance → STT → transcript →
+LLM stream (Sonnet if pending screenshot < 60s else Haiku) →
+TTS sentence-buffered stream → audio_chunk messages → audio_end
+```
+
+## Latency budget
+End-of-user-speech → first audio byte: **< 2.5s**. Stream at every stage.
+
+## Decisions
+See [DECISIONS.md](DECISIONS.md).
+```
+
+- [ ] **Step 3: (intentionally skipped — `docs/API.md` is written in Task 6a)**
+
+- [ ] **Step 4: Write `docs/RUNBOOK.md` skeleton**
+
+```markdown
+# Runbook
+
+## Local dev
+```bash
+python -m venv .venv
+# PowerShell:  .venv\Scripts\Activate.ps1
+# Bash:        source .venv/Scripts/activate
+pip install -r requirements.txt
+cp .env.example .env
+uvicorn backend.main:app --reload --port 8000
+```
+
+## Env vars
+| Name | Required | Notes |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | yes | Claude (Haiku + Sonnet) |
+| `GROQ_API_KEY` | yes | Groq Whisper Large v3 Turbo |
+| `ELEVENLABS_API_KEY` | yes | TTS |
+| `ELEVENLABS_VOICE_ID_EN` | yes | English voice |
+| `ELEVENLABS_VOICE_ID_ES` | yes | Spanish voice |
+| `LOG_LEVEL` | no | DEBUG / INFO / WARNING / ERROR (default INFO) |
+
+## Tests
+```bash
+pytest -q
+```
+
+## Deployment
+(Phase 5 fills in.)
+
+## Troubleshooting
+(Filled in as we hit issues.)
+```
+
+- [ ] **Step 5: Write `docs/DECISIONS.md` skeleton**
+
+```markdown
+# Decisions
+
+A decision log. One paragraph per choice: context, decision, rationale, alternatives.
+
+## STT: Groq Whisper Large v3 Turbo
+**Context:** End-of-utterance to first audio byte budget is 2.5s.
+**Decision:** Use Groq Whisper Large v3 Turbo.
+**Rationale:** Roughly 3–5× faster than OpenAI Whisper at comparable accuracy.
+**Alternatives considered:** OpenAI Whisper (slower), local faster-whisper (heavier, no GPU on Render).
+**How to swap:** Add a new `STTProvider` subclass and change one line in `pipeline/stt.py`.
+
+(Later phases append more entries.)
+```
+
+- [ ] **Step 6: Write `docs/DEMO.md` skeleton**
+
+```markdown
+# Demo: Zoom with the doctor
+
+## Setup
+- User opens the test page.
+- Mic + screen-share permissions granted.
+
+## Script
+(Filled in at end of Phase 3.)
+
+## Failure modes
+(Filled in at end of Phase 3.)
+```
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add README.md docs/ARCHITECTURE.md docs/RUNBOOK.md docs/DECISIONS.md docs/DEMO.md
+git commit -m "phase-0: initial docs skeletons + README (API.md in next task)"
+```
+
+---
+
+### Task 6a: Write full `docs/API.md` (the contract for the parallel frontend agent)
+
+**Files:**
+- Create: `docs/API.md`
+
+This is the document the parallel Claude design frontend agent reads. It is complete from Day 0 even though most backend handlers won't be live until later phases — the `/api/status` endpoint tells the frontend which message types actually work right now.
+
+- [ ] **Step 1: Write `docs/API.md` in full**
+
+```markdown
+# WebSocket API
+
+> This document is the contract for the frontend. It is self-contained — the frontend should not need to read backend code. Live vs stubbed status for every message type is exposed at `GET /api/status`.
+
+## Base URLs
+
+| Environment | HTTP base | WebSocket base |
+|---|---|---|
+| Local dev | `http://localhost:8000` | `ws://localhost:8000` |
+| Production | `https://api.daisyhelps.com` | `wss://api.daisyhelps.com` |
+
+## Endpoints
+
+| Path | Method | Purpose |
+|---|---|---|
+| `/healthz` | GET | Liveness probe. Returns `{"status":"ok"}`. |
+| `/` | GET | Simple service info JSON. |
+| `/api/status` | GET | Feature readiness — phase number + which message types are `live` vs `stubbed`. |
+| `/test` | GET | Backend debug harness HTML (not for production use). |
+| `/ws/{session_id}` | WebSocket | Real-time conversation. `session_id` is a client-generated UUID v4. |
+
+## GET /api/status
+
+Returns a JSON document describing what's live right now:
+
+```json
+{
+  "service": "daisy-helps-backend",
+  "version": "0.1.0",
+  "phase": 0,
+  "phase_name": "scaffold",
+  "http": {
+    "GET /healthz": "live",
+    "GET /": "live",
+    "GET /test": "live",
+    "GET /api/status": "live",
+    "WS /ws/{session_id}": "live"
+  },
+  "client_to_server": {
+    "config": "live",
+    "audio_chunk": "stubbed",
+    "user_text": "stubbed",
+    "screenshot": "stubbed",
+    "interrupt": "stubbed",
+    "language_change": "stubbed",
+    "end_session": "stubbed"
+  },
+  "server_to_client": {
+    "status": "live",
+    "error": "live",
+    "transcript": "stubbed",
+    "daisy_text": "stubbed",
+    "audio_chunk": "stubbed",
+    "audio_end": "stubbed",
+    "screenshot_request": "stubbed"
+  }
+}
+```
+
+**Frontend agent guidance:** Read this endpoint on app startup. For any message type that's `stubbed`, the server WILL still accept the message but respond with `{"type":"error","code":"not_yet_implemented","message":"..."}`. Wire the protocol from Day 0; expect features to come online as phases land.
+
+## Connection lifecycle
+
+```
+client ──open WS──▶ server
+server ──{"type":"status","state":"idle"}──▶ client
+client ──{"type":"config","language":"en"}──▶ server
+client ──{"type":"audio_chunk", ...}──▶ server  (many, ~100ms each)
+                                          │ (VAD detects end-of-utterance)
+server ──{"type":"status","state":"listening"}──▶ client
+server ──{"type":"transcript","text":"...","final":true}──▶ client
+server ──{"type":"status","state":"thinking"}──▶ client
+server ──{"type":"daisy_text","text":"...","partial":true}──▶ client (many)
+server ──{"type":"status","state":"speaking"}──▶ client
+server ──{"type":"audio_chunk","data":"...","sequence":N}──▶ client (many)
+server ──{"type":"daisy_text","text":"...","partial":false}──▶ client (full text)
+server ──{"type":"audio_end"}──▶ client
+server ──{"type":"status","state":"idle"}──▶ client
+```
+
+## Client → Server messages
+
+### `config`
+Set the conversation language. Send once after connect; resending is equivalent to `language_change`.
+```json
+{"type": "config", "language": "en"}
+```
+**Live from:** Phase 0.
+
+### `audio_chunk`
+16 kHz mono 16-bit little-endian PCM, base64-encoded. Chunks should be ~50–100ms. Server runs VAD on the rolling buffer and only transcribes complete utterances.
+```json
+{"type": "audio_chunk", "data": "<base64>", "sequence": 0}
+```
+**Live from:** Phase 1.
+
+### `user_text`
+Bypass STT entirely. Functionally equivalent to a transcribed audio utterance.
+```json
+{"type": "user_text", "text": "I have a Zoom call with my doctor and I can't get in"}
+```
+**Live from:** Phase 1.
+
+### `screenshot`
+Base64-encoded PNG, no `data:` URI prefix. Stored on the session with a timestamp; attached to the next LLM call if < 60s old.
+```json
+{"type": "screenshot", "data": "<base64 png>"}
+```
+**Live from:** Phase 2.
+
+### `interrupt`
+Stop Daisy mid-response. Server cancels in-flight TTS within ~200ms.
+```json
+{"type": "interrupt"}
+```
+**Live from:** Phase 3.
+
+### `language_change`
+Switch language mid-session. Affects system prompt and TTS voice immediately.
+```json
+{"type": "language_change", "language": "es"}
+```
+**Live from:** Phase 1.
+
+### `end_session`
+Close the connection.
+```json
+{"type": "end_session"}
+```
+**Live from:** Phase 1.
+
+## Server → Client messages
+
+### `status`
+Pipeline state. Announced on every transition.
+```json
+{"type": "status", "state": "idle"}
+```
+Values: `idle | listening | thinking | speaking`. **Live from:** Phase 0.
+
+### `transcript`
+What Daisy heard. In v1, only `final:true` is emitted.
+```json
+{"type": "transcript", "text": "I can't get into my zoom call", "final": true}
+```
+**Live from:** Phase 1.
+
+### `daisy_text`
+Daisy's response text. `partial:true` deltas stream during LLM generation; one final `partial:false` frame contains the complete text.
+```json
+{"type": "daisy_text", "text": "Of course — ", "partial": true}
+```
+**Live from:** Phase 1.
+
+### `audio_chunk`
+24 kHz mono 16-bit LE PCM from ElevenLabs, base64. Streamed as bytes arrive. Frontend queues and plays in order.
+```json
+{"type": "audio_chunk", "data": "<base64>", "sequence": 0}
+```
+**Live from:** Phase 1.
+
+### `audio_end`
+End of the current audio stream (finished or interrupted).
+```json
+{"type": "audio_end"}
+```
+**Live from:** Phase 1.
+
+### `screenshot_request`
+Server is asking for a screenshot. Frontend should capture and send a `screenshot` message.
+```json
+{"type": "screenshot_request", "reason": "I'd like to see your email inbox"}
+```
+**Live from:** Phase 2.
+
+### `error`
+Something went wrong. `code` is a stable identifier; `message` is human-readable.
+```json
+{"type": "error", "code": "bad_message", "message": "missing 'type' field"}
+```
+**Known codes:**
+- `bad_session_id` — session_id is not a valid UUID
+- `bad_message` — malformed or unknown message type
+- `not_yet_implemented` — protocol type is documented but not yet live in the current phase
+- `stt_failed` — transcription error
+- `llm_failed` — LLM call error
+- `tts_failed` — TTS error
+- `screenshot_invalid` — screenshot data could not be decoded
+- `turn_failed` — generic turn-level failure
+
+**Live from:** Phase 0.
+
+## Audio formats
+- **In** (client → server): 16 kHz mono 16-bit little-endian PCM, base64.
+- **Out** (server → client): 24 kHz mono 16-bit little-endian PCM, base64.
+
+## CORS / origins
+Allowed origins: `https://daisyhelps.com`, `https://www.daisyhelps.com`, `https://api.daisyhelps.com`, and `http://localhost:*`.
+
+## Vision flow
+
+The session holds at most one pending screenshot: `(bytes, timestamp)`. TTL is 60 seconds.
+
+```
+client ──{"type":"screenshot","data":"<base64 png>"}──▶ server   (anytime)
+                                                          │ (stored with timestamp)
+client ──{"type":"audio_chunk", ...}──▶ server          (user keeps talking)
+                                                          │ (utterance closed)
+server inspects session: fresh screenshot present?
+   ├─ yes → attach as Claude image block, route to Sonnet, mark consumed
+   └─ no  → if user mentioned visual cues, emit screenshot_request; route to Haiku
+```
+
+The "consumed" flag means the same screenshot is NEVER attached to two consecutive LLM calls. If the user keeps asking visual questions, the frontend must send a fresh screenshot.
+
+## Interrupt timing
+Audio stops within ~200ms of `interrupt`. The server emits `audio_end` and then `status:listening`.
+
+## Frontend agent quick-start
+
+1. Read `GET /api/status` once on connect to know what's live.
+2. Open `ws://localhost:8000/ws/<uuid>` (or `wss://api.daisyhelps.com/ws/<uuid>` in prod).
+3. Send `{"type":"config","language":"en"}` immediately.
+4. Capture mic at 16 kHz mono PCM; send 50–100ms `audio_chunk` messages.
+5. Render `transcript`, `daisy_text` (partial + final), and `status` to the UI.
+6. Decode and queue `audio_chunk` bytes for playback at 24 kHz.
+7. On `screenshot_request`, capture the screen and send `screenshot`.
+8. To barge in: send `interrupt`; expect `audio_end` + `status:listening` within 200ms.
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add docs/API.md
+git commit -m "phase-0: full WebSocket API contract (the frontend-agent contract)"
+```
+
+---
+
+### Task 7: Phase 0 smoke test and phase commit
+
+- [ ] **Step 1: Run the smoke test sequence**
+
+1. `uvicorn backend.main:app --reload --port 8000`
+2. `curl http://localhost:8000/healthz` → `{"status":"ok"}`
+3. `curl http://localhost:8000/api/status` → JSON with `phase: 0`, `config`/`status`/`error` `live`, the rest `stubbed`.
+4. Open `http://localhost:8000/test`. UUID auto-populated; click Connect; see `{"type":"status","state":"idle"}`.
+5. Click "Fetch /api/status" — full JSON appears in the log.
+6. Type "hello" and Send. Response: `<< error not_yet_implemented user_text is not live in phase 0`. **This is correct** — the stub is working.
+7. Run `pytest -q` — Task 3a's WS message tests pass.
+8. Disconnect. Server logs show clean disconnect.
+
+If all eight steps pass, Phase 0 is done.
+
+- [ ] **Step 2: Final phase commit**
+
+```bash
+git status
+# If anything is staged or untracked:
+git add -A
+git commit --allow-empty -m "phase-0: scaffold complete (contract surface live for parallel frontend agent)"
+```
+
+---
+
+# Phase 1 — Voice loop, no vision
+
+Goal: A full audio → response → audio loop with no screenshots. Daisy listens, transcribes, responds with Claude Haiku, speaks via ElevenLabs. Language toggle works. Unit tests for VAD / router / session / messages.
+
+---
+
+### Task 8: WS message models *(moved to Phase 0 Task 3a — verify only)*
+
+Confirm Phase 0 Task 3a is complete:
+
+- [ ] **Step 1: Verify**
+
+```bash
+pytest tests/test_ws_messages.py -v
+ls backend/messages.py
+```
+
+Expected: tests pass, file exists. If not, jump back to Phase 0 Task 3a. No commit needed — this task is a guard.
 
 ---
 
@@ -1802,6 +2189,8 @@ Replace the Phase 0 echo handler with the full pipeline. This task is the larges
 
 - [ ] **Step 1: Replace `backend/main.py` in its entirety**
 
+This rewrite preserves the Phase 0 surface (CORS, `/healthz`, `/`, `/test`, `/api/status`) and the `is_live()`-gated WS dispatch, then adds the real pipeline handlers for every message type that's about to go live in Phase 1.
+
 ```python
 """Daisy Helps backend — FastAPI app entrypoint."""
 from __future__ import annotations
@@ -1839,6 +2228,7 @@ from backend.pipeline.llm import stream_response
 from backend.pipeline.stt import make_stt_provider
 from backend.pipeline.tts import stream_tts
 from backend.pipeline.vad import VADBuffer
+from backend.readiness import READINESS, is_live
 from backend.session import Session, SessionStore
 
 TEST_PAGE_PATH = Path(__file__).resolve().parent.parent / "test_harness" / "test_page.html"
@@ -1850,7 +2240,7 @@ stt_provider = None  # type: ignore[assignment]
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging()
-    logger.info("Daisy Helps backend starting")
+    logger.info(f"Daisy Helps backend starting (phase {READINESS['phase']})")
     global stt_provider
     stt_provider = make_stt_provider()
     yield
@@ -1883,6 +2273,11 @@ async def root():
     return JSONResponse({"service": "daisy-helps-backend", "status": "running", "docs": "/docs"})
 
 
+@app.get("/api/status")
+async def api_status():
+    return JSONResponse(READINESS)
+
+
 @app.get("/test")
 async def test_page():
     if not TEST_PAGE_PATH.exists():
@@ -1901,8 +2296,7 @@ async def ws_endpoint(websocket: WebSocket, session_id: str):
         return
 
     session = session_store.create(sid)
-    session.vad_buffer = VADBuffer(sample_rate=16000, silence_ms=700)  # attach VAD
-    audio_seq = 0  # outgoing audio chunk counter
+    session.vad_buffer = VADBuffer(sample_rate=16000, silence_ms=700)
 
     logger.info(f"WS connect session={sid}")
     await websocket.send_json(status_msg("idle"))
@@ -1914,6 +2308,13 @@ async def ws_endpoint(websocket: WebSocket, session_id: str):
                 msg = parse_client_message(raw)
             except (ValidationError, ValueError) as e:
                 await websocket.send_json(error_msg("bad_message", str(e)))
+                continue
+
+            mtype = msg.type
+            if not is_live("client_to_server", mtype):
+                await websocket.send_json(
+                    error_msg("not_yet_implemented", f"{mtype} is not live in phase {READINESS['phase']}")
+                )
                 continue
 
             if isinstance(msg, ConfigMessage):
@@ -2070,15 +2471,60 @@ Expected: all unit tests still pass (no regressions in vad / session / messages 
 uvicorn backend.main:app --port 8000
 ```
 
-Expected: server prints the startup banner and "Daisy Helps backend starting". If startup raises because `GROQ_API_KEY` is missing, populate `.env` first (or set env vars in your shell).
+Expected: server prints startup banner with `(phase 1)` once the flags flip in the next step. If startup raises because `GROQ_API_KEY` is missing, populate `.env` first (or set env vars in your shell).
 
 Stop with Ctrl+C.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Flip readiness flags for Phase 1**
+
+Edit `backend/readiness.py`. Update the dict so it reflects the newly-live message types:
+
+```python
+READINESS: dict = {
+    "service": "daisy-helps-backend",
+    "version": "0.1.0",
+    "phase": 1,
+    "phase_name": "voice-loop",
+    "http": {
+        "GET /healthz": STATUS_LIVE,
+        "GET /": STATUS_LIVE,
+        "GET /test": STATUS_LIVE,
+        "GET /api/status": STATUS_LIVE,
+        "WS /ws/{session_id}": STATUS_LIVE,
+    },
+    "client_to_server": {
+        "config": STATUS_LIVE,
+        "audio_chunk": STATUS_LIVE,
+        "user_text": STATUS_LIVE,
+        "screenshot": STATUS_STUBBED,
+        "interrupt": STATUS_LIVE,
+        "language_change": STATUS_LIVE,
+        "end_session": STATUS_LIVE,
+    },
+    "server_to_client": {
+        "status": STATUS_LIVE,
+        "error": STATUS_LIVE,
+        "transcript": STATUS_LIVE,
+        "daisy_text": STATUS_LIVE,
+        "audio_chunk": STATUS_LIVE,
+        "audio_end": STATUS_LIVE,
+        "screenshot_request": STATUS_STUBBED,
+    },
+}
+```
+
+Verify:
+```bash
+curl http://localhost:8000/api/status
+```
+
+Expected: `phase: 1`, only `screenshot` and `screenshot_request` remain `stubbed`.
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add backend/main.py
-git commit -m "phase-1: wire VAD/STT/LLM/TTS pipeline into WS handler"
+git add backend/main.py backend/readiness.py
+git commit -m "phase-1: wire VAD/STT/LLM/TTS pipeline + flip readiness flags"
 ```
 
 ---
@@ -2369,166 +2815,30 @@ git commit -m "phase-1: test page with mic capture and audio playback"
 
 ---
 
-### Task 17: Fill in `docs/API.md` with the full protocol
+### Task 17: Verify `docs/API.md` *(written in Phase 0 Task 6a — verify only)*
 
-**Files:**
-- Modify: `docs/API.md`
+`docs/API.md` was written in full during Phase 0 to support the parallel frontend agent. This task verifies it still matches the implementation after wiring is done.
 
-- [ ] **Step 1: Replace the file contents**
+- [ ] **Step 1: Read `docs/API.md`**
 
-```markdown
-# WebSocket API
+Compare each message type's documented schema and "Live from: Phase N" annotation against what the WS handler actually does. If anything changed during Phase 1 implementation (e.g., an extra field added to a message), update the doc.
 
-> This document is the contract for the frontend. It is self-contained — the frontend should not need to read backend code.
+- [ ] **Step 2: Verify against the live server**
 
-## Connection
-URL: `wss://api.daisyhelps.com/ws/{session_id}` (or `ws://localhost:8000/...` in dev). `session_id` is a UUID v4 generated client-side.
-
-On open the server sends:
-```json
-{"type": "status", "state": "idle"}
+```bash
+curl http://localhost:8000/api/status
 ```
 
-The client MUST send a `config` message before any audio or text. Failure to do so does not error, but Daisy will respond in the default language (`en`).
+Cross-check the readiness flags against the "Live from" notes in `docs/API.md`. They should agree.
 
-## Lifecycle
-```
-client ──open WS──▶ server
-server ──{type:"status","state":"idle"}──▶ client
-client ──{type:"config","language":"en"}──▶ server
-client ──{type:"audio_chunk", ...}──▶ server (many, ~100ms each)
-                                        │ (server: VAD detects end-of-utterance)
-server ──{type:"status","state":"listening"}──▶ client
-server ──{type:"transcript","text":"...","final":true}──▶ client
-server ──{type:"status","state":"thinking"}──▶ client
-server ──{type:"daisy_text","text":"...","partial":true}──▶ client (many)
-server ──{type:"status","state":"speaking"}──▶ client
-server ──{type:"audio_chunk","data":"...","sequence":N}──▶ client (many)
-server ──{type:"daisy_text","text":"...","partial":false}──▶ client (the full text)
-server ──{type:"audio_end"}──▶ client
-server ──{type:"status","state":"idle"}──▶ client
-```
-
-## Client → Server messages
-
-### `config`
-Set the conversation language. Send once after connect; resending is equivalent to `language_change`.
-```json
-{"type": "config", "language": "en"}    // or "es"
-```
-
-### `audio_chunk`
-16 kHz mono 16-bit little-endian PCM, base64-encoded. Chunks should be ~50–100ms. Server VADs the rolling buffer and only transcribes complete utterances.
-```json
-{"type": "audio_chunk", "data": "<base64>", "sequence": 0}
-```
-
-### `user_text`
-Bypass STT entirely. Functionally equivalent to a transcribed audio utterance.
-```json
-{"type": "user_text", "text": "I have a Zoom call with my doctor and I can't get in"}
-```
-
-### `screenshot`
-Base64-encoded PNG, no `data:` URI prefix. Stored on the session with a timestamp; attached to the next LLM call if < 60s old.
-```json
-{"type": "screenshot", "data": "<base64 png>"}
-```
-
-### `interrupt`
-Stop Daisy mid-response. Server cancels the in-flight TTS within ~200ms.
-```json
-{"type": "interrupt"}
-```
-
-### `language_change`
-Switch language mid-session. Affects both system prompt and TTS voice immediately.
-```json
-{"type": "language_change", "language": "es"}
-```
-
-### `end_session`
-Politely close the connection.
-```json
-{"type": "end_session"}
-```
-
-## Server → Client messages
-
-### `status`
-Pipeline state. Always announced on every transition.
-```json
-{"type": "status", "state": "idle"}        // also: listening | thinking | speaking
-```
-
-### `transcript`
-What Daisy heard the user say. In v1 only `final:true` is emitted (no partial transcripts).
-```json
-{"type": "transcript", "text": "I can't get into my zoom call", "final": true}
-```
-
-### `daisy_text`
-Daisy's response text. `partial:true` deltas stream during LLM generation; one final `partial:false` frame at the end contains the complete text.
-```json
-{"type": "daisy_text", "text": "Of course — ", "partial": true}
-```
-
-### `audio_chunk`
-24 kHz mono 16-bit LE PCM from ElevenLabs, base64-encoded, streamed as bytes arrive. Frontend should queue and play in order.
-```json
-{"type": "audio_chunk", "data": "<base64>", "sequence": 0}
-```
-
-### `audio_end`
-Signals the end of the current audio stream (whether finished or interrupted).
-```json
-{"type": "audio_end"}
-```
-
-### `screenshot_request`
-Server is asking for a screenshot. Frontend should capture and send a `screenshot` message.
-```json
-{"type": "screenshot_request", "reason": "I'd like to see your email inbox"}
-```
-
-### `error`
-Something went wrong. `code` is a stable machine-readable identifier; `message` is human-readable.
-```json
-{"type": "error", "code": "bad_message", "message": "missing 'type' field"}
-```
-
-Known error codes:
-- `bad_session_id` — session_id is not a valid UUID
-- `bad_message` — malformed or unknown message type
-- `stt_failed` — transcription error
-- `llm_failed` — LLM call error
-- `tts_failed` — TTS error
-- `screenshot_invalid` — screenshot data could not be decoded
-- `turn_failed` — generic turn-level failure
-
-## Audio formats
-- **In** (client → server): 16 kHz mono 16-bit little-endian PCM, base64.
-- **Out** (server → client): 24 kHz mono 16-bit little-endian PCM, base64.
-
-## CORS / origins
-Allowed origins: `https://daisyhelps.com`, `https://www.daisyhelps.com`, `https://api.daisyhelps.com`, and `http://localhost:*` for development.
-
-## Interrupt timing
-Audio stops within ~200ms of an `interrupt` message. The server emits `audio_end` and `status:listening`.
-
-## Screenshot lifecycle
-1. Frontend sends `screenshot` whenever it has one — proactively, or in response to `screenshot_request`.
-2. Server stores it with a timestamp.
-3. On the next LLM call, if a screenshot < 60s old exists, it's attached as an image and the call routes to Sonnet. Otherwise it routes to Haiku.
-4. After the call begins, the screenshot is consumed — not re-attached to later calls.
-```
-
-- [ ] **Step 2: Commit**
+- [ ] **Step 3: Commit if doc was changed**
 
 ```bash
 git add docs/API.md
-git commit -m "phase-1: full WebSocket API contract in docs/API.md"
+git commit -m "phase-1: docs/API.md sync after wiring"
 ```
+
+If no changes were needed, skip this commit.
 
 ---
 
@@ -2717,11 +3027,22 @@ Replace the existing `ScreenshotMessage` branch in `ws_endpoint` (in `backend/ma
                     await websocket.send_json(error_msg("screenshot_invalid", str(e)))
 ```
 
-- [ ] **Step 2: Commit**
+- [ ] **Step 2: Flip `screenshot` readiness flag**
+
+In `backend/readiness.py`, change:
+```python
+        "screenshot": STATUS_STUBBED,
+```
+to:
+```python
+        "screenshot": STATUS_LIVE,
+```
+
+- [ ] **Step 3: Commit**
 
 ```bash
-git add backend/main.py
-git commit -m "phase-2: validate screenshot bytes; emit screenshot_invalid on failure"
+git add backend/main.py backend/readiness.py
+git commit -m "phase-2: validate screenshot bytes + flip screenshot to live"
 ```
 
 ---
@@ -2840,11 +3161,22 @@ Replace with:
                 )
 ```
 
-- [ ] **Step 2: Commit**
+- [ ] **Step 2: Flip `screenshot_request` readiness flag**
+
+In `backend/readiness.py`, change:
+```python
+        "screenshot_request": STATUS_STUBBED,
+```
+to:
+```python
+        "screenshot_request": STATUS_LIVE,
+```
+
+- [ ] **Step 3: Commit**
 
 ```bash
-git add backend/main.py
-git commit -m "phase-2: emit screenshot_request when user mentions visual cues"
+git add backend/main.py backend/readiness.py
+git commit -m "phase-2: emit screenshot_request on visual cues + flip flag"
 ```
 
 ---
@@ -2948,10 +3280,25 @@ uvicorn backend.main:app --reload --port 8000
 4. Watch the log: `transcript` → `status thinking` → `daisy_text partial=true` deltas → audio playback.
 5. Daisy's response should reference what she actually sees in the screenshot (e.g., a sender name, subject line, or the word "Zoom" if visible).
 
-- [ ] **Step 4: Phase commit**
+- [ ] **Step 4: Bump phase in `backend/readiness.py`**
+
+```python
+    "phase": 2,
+    "phase_name": "vision",
+```
+
+Verify:
+```bash
+curl http://localhost:8000/api/status | python -c "import json, sys; d = json.load(sys.stdin); print(d['phase'], d['phase_name'])"
+```
+
+Expected: `2 vision`.
+
+- [ ] **Step 5: Phase commit**
 
 ```bash
-git commit --allow-empty -m "phase-2: vision (screenshot attach + sonnet routing)"
+git add backend/readiness.py
+git commit -m "phase-2: vision (screenshot attach + sonnet routing) + bump readiness"
 ```
 
 ---
@@ -3100,10 +3447,18 @@ Run the demo script in DEMO.md end-to-end in the browser. Should complete in und
 
 During a long response from Daisy, click Interrupt. Audio should stop within ~200ms (measured by ear; if it feels noticeable, time it with a stopwatch). Server log should show `turn cancelled (interrupt)`.
 
-- [ ] **Step 3: Phase commit**
+- [ ] **Step 3: Bump phase in `backend/readiness.py`**
+
+```python
+    "phase": 3,
+    "phase_name": "multi-turn-interrupts",
+```
+
+- [ ] **Step 4: Phase commit**
 
 ```bash
-git commit --allow-empty -m "phase-3: multi-turn flow + interrupts verified"
+git add backend/readiness.py
+git commit -m "phase-3: multi-turn flow + interrupts verified + bump readiness"
 ```
 
 ---
@@ -3145,10 +3500,18 @@ git commit -m "phase-4: ensure TTS voice ID is read per turn from session langua
 3. Daisy responds via the full pipeline (`transcript` final=true + `daisy_text` + audio_chunks), but never invokes STT (server logs should show no Groq Whisper call).
 4. Repeat in Spanish: switch language, type Spanish, get Spanish response.
 
-- [ ] **Step 2: Phase commit**
+- [ ] **Step 2: Bump phase in `backend/readiness.py`**
+
+```python
+    "phase": 4,
+    "phase_name": "language-text-verified",
+```
+
+- [ ] **Step 3: Phase commit**
 
 ```bash
-git commit --allow-empty -m "phase-4: language toggle + text fallback verified"
+git add backend/readiness.py
+git commit -m "phase-4: language toggle + text fallback verified + bump readiness"
 ```
 
 ---
@@ -3513,10 +3876,18 @@ In the browser, open `https://api.daisyhelps.com/test`. Run the full Zoom-with-d
 
 Walk through `docs/superpowers/specs/2026-05-16-daisy-helps-backend-design.md` section 13 — all 13 items should be true. Tick them off in your head; if anything fails, fix and iterate.
 
-- [ ] **Step 3: Final phase commit**
+- [ ] **Step 3: Bump phase in `backend/readiness.py` to final**
+
+```python
+    "phase": 5,
+    "phase_name": "deployed",
+```
+
+- [ ] **Step 4: Final phase commit**
 
 ```bash
-git commit --allow-empty -m "phase-5: deployed + verified + docs finalized"
+git add backend/readiness.py
+git commit -m "phase-5: deployed + verified + docs finalized"
 ```
 
 Daisy Helps backend is shipped.
@@ -3528,17 +3899,23 @@ Daisy Helps backend is shipped.
 This plan was self-reviewed against the spec at `docs/superpowers/specs/2026-05-16-daisy-helps-backend-design.md`. Coverage:
 
 - **Section 1 Mission** → covered by phases 1–4 (voice loop, vision, multi-turn, language)
-- **Section 2 Scope (in)** → all items mapped to tasks: FastAPI/WS (T3, T4), VAD (T11), STT (T12), LLM (T13), TTS (T14), Session (T10), streaming (T15), interrupts (T25), multilingual (T29), API.md (T17, T23), test harness (T16, T34), Render (T31–33), unit tests (T8, T10, T11, T13)
+- **Section 2 Scope (in)** → all items mapped to tasks: FastAPI/WS (T3, T4), VAD (T11), STT (T12), LLM (T13), TTS (T14), Session (T10), streaming (T15), interrupts (T25), multilingual (T29), API.md (T6a, T17, T23), test harness (T16, T34), Render (T31–33), unit tests (T3a, T10, T11, T13)
 - **Section 3 Stack** → Task 1 (requirements.txt), Task 2 (config + logging), Task 11 (silero-vad note in DECISIONS)
-- **Section 4 Repo layout** → mapped 1:1 by the file structure section + tasks
+- **Section 4 Repo layout** → mapped 1:1 by the file structure section + tasks (now includes `backend/readiness.py`)
 - **Section 5 Persona** → Task 9 (prompts), Task 26 (iteration)
-- **Section 6 WS API** → Tasks 8, 17, 23 (messages.py + API.md sections)
+- **Section 6 WS API** → Tasks 3a (messages.py), 6a (full API.md from Day 0), 23 (vision extensions)
 - **Section 7 Vision flow** → Tasks 20, 21, 22, 23, 24
 - **Section 8 Interrupts** → Tasks 15 (_cancel_turn), 25 (verify timing)
 - **Section 9 Session state** → Task 10
-- **Section 10 Tests** → Tasks 8, 10, 11, 13 (all four test files)
+- **Section 10 Tests** → Tasks 3a, 10, 11, 13 (all four test files)
 - **Section 11 Deployment** → Tasks 31, 32, 33, 35
 - **Section 12 Phase sequencing** → enforced by phase headings; smoke tests as separate verification tasks (T7, T19, T24, T28, T30, T36)
 - **Section 13 Done criteria** → all 13 items verifiable by the smoke tests above
+
+**Parallel-frontend coverage** (added after the initial spec):
+- Full `docs/API.md` from Phase 0 → Task 6a
+- `backend/readiness.py` + `GET /api/status` → Task 3b
+- Stubbed-dispatch WS handler from Phase 0 → Task 4 + `is_live()` gate carried through Task 15
+- Per-phase readiness flag flips → Tasks 15 (Step 4), 20 (Step 2), 22 (Step 2), 24 (Step 4), 28 (Step 3), 30 (Step 2), 36 (Step 3)
 
 No placeholders, no "implement later" — every task has complete code or exact commands.
