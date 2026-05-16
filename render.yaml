@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: daisyhelps-backend
+    runtime: python
+    plan: starter
+    pythonVersion: "3.11"
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID_EN
+        sync: false
+      - key: ELEVENLABS_VOICE_ID_ES
+        sync: false
+      - key: LOG_LEVEL
+        value: INFO
