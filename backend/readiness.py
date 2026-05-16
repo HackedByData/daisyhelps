@@ -25,7 +25,7 @@ READINESS: dict = {
         "config": STATUS_LIVE,
         "audio_chunk": STATUS_LIVE,
         "user_text": STATUS_LIVE,
-        "screenshot": STATUS_STUBBED,
+        "screenshot": STATUS_LIVE,
         "interrupt": STATUS_LIVE,
         "language_change": STATUS_LIVE,
         "end_session": STATUS_LIVE,

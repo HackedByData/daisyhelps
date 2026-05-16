@@ -137,9 +137,14 @@ async def ws_endpoint(websocket: WebSocket, session_id: str):
                 await _start_turn(websocket, session, utterance_audio=None, user_text=msg.text)
 
             elif isinstance(msg, ScreenshotMessage):
-                png = base64.standard_b64decode(msg.data)
-                session.set_screenshot(png)
-                logger.info(f"session={sid} screenshot received ({len(png)}b)")
+                try:
+                    png = base64.b64decode(msg.data, validate=True)
+                    if len(png) < 8 or png[:8] != b"\x89PNG\r\n\x1a\n":
+                        raise ValueError("not a PNG")
+                    session.set_screenshot(png)
+                    logger.info(f"session={sid} screenshot received ({len(png)}b)")
+                except Exception as e:
+                    await websocket.send_json(error_msg("screenshot_invalid", str(e)))
 
             elif isinstance(msg, InterruptMessage):
                 await _cancel_turn(websocket, session)
