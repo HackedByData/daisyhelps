@@ -12,8 +12,8 @@ STATUS_STUBBED = "stubbed"
 READINESS: dict = {
     "service": "daisy-helps-backend",
     "version": "0.1.0",
-    "phase": 4,
-    "phase_name": "language-text-verified",
+    "phase": 5,
+    "phase_name": "click-indicator",
     "http": {
         "GET /healthz": STATUS_LIVE,
         "GET /": STATUS_LIVE,
@@ -38,6 +38,8 @@ READINESS: dict = {
         "audio_chunk": STATUS_LIVE,
         "audio_end": STATUS_LIVE,
         "screenshot_request": STATUS_LIVE,
+        "click_indicator": STATUS_LIVE,
+        "clear_indicator": STATUS_LIVE,
     },
 }
 
