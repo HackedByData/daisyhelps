@@ -101,3 +101,26 @@ def screenshot_request_msg(reason: str) -> dict:
 
 def error_msg(code: str, message: str) -> dict:
     return {"type": "error", "code": code, "message": message}
+
+
+def click_indicator_msg(
+    x: int,
+    y: int,
+    ref_width: int,
+    ref_height: int,
+    label: str | None = None,
+    confidence: float | None = None,
+) -> dict:
+    return {
+        "type": "click_indicator",
+        "x": x,
+        "y": y,
+        "ref_width": ref_width,
+        "ref_height": ref_height,
+        "label": label,
+        "confidence": confidence,
+    }
+
+
+def clear_indicator_msg() -> dict:
+    return {"type": "clear_indicator"}
