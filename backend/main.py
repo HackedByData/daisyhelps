@@ -39,6 +39,14 @@ from backend.session import Session, SessionStore
 
 TEST_PAGE_PATH = Path(__file__).resolve().parent.parent / "test_harness" / "test_page.html"
 
+# Words that suggest the user might want Daisy to look at the screen.
+_VISUAL_HINT_WORDS = (
+    "screen", "page", "see", "look", "show", "click", "button", "window",
+    "email", "tab", "browser", "open",
+    "pantalla", "página", "ver", "mirar", "mostrar", "haz clic", "botón", "ventana",
+    "correo", "pestaña", "navegador", "abrir",
+)
+
 session_store = SessionStore()
 stt_provider = None  # type: ignore[assignment]
 
@@ -226,8 +234,16 @@ async def _run_turn(
         session.set_status("thinking")
         await websocket.send_json(status_msg("thinking"))
 
-        # Vision: attach screenshot if fresh
-        image_bytes = session.consume_screenshot() if session.has_fresh_screenshot() else None
+        # Vision: attach screenshot if fresh; otherwise proactively ask for one when the user mentions visual cues
+        image_bytes = None
+        if session.has_fresh_screenshot():
+            image_bytes = session.consume_screenshot()
+        else:
+            lower = text.lower()
+            if any(w in lower for w in _VISUAL_HINT_WORDS):
+                await websocket.send_json(
+                    {"type": "screenshot_request", "reason": "I'd like to see what you're looking at"}
+                )
 
         # Collect LLM stream into a queue so we can fan out to (a) a chained TTS, (b) daisy_text emission
         llm_text_acc = []

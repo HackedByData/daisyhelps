@@ -37,7 +37,7 @@ READINESS: dict = {
         "daisy_text": STATUS_LIVE,
         "audio_chunk": STATUS_LIVE,
         "audio_end": STATUS_LIVE,
-        "screenshot_request": STATUS_STUBBED,
+        "screenshot_request": STATUS_LIVE,
     },
 }
 
