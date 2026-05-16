@@ -34,7 +34,28 @@ pytest -q
 All four test files (VAD, LLM router, session, WS messages) must pass. Total runtime < 5s.
 
 ## Deployment
-(Filled in at Phase 5.)
+
+The service deploys to Render automatically on every push to `main` via the `render.yaml` blueprint.
+
+### One-time setup
+1. Sign in to https://dashboard.render.com.
+2. New → Blueprint, point at this repo. Render picks up `render.yaml`.
+3. In the service settings → Environment, set the five secret env vars (`ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID_EN`, `ELEVENLABS_VOICE_ID_ES`). `LOG_LEVEL` comes from `render.yaml`.
+4. Custom Domain → add `api.daisyhelps.com`. Render gives a CNAME target.
+5. At your registrar (where daisyhelps.com lives), add a CNAME `api` → that target.
+6. Wait ~5 minutes for DNS + TLS cert.
+
+### Verify a deploy
+```bash
+curl https://api.daisyhelps.com/healthz
+# → {"status":"ok"}
+
+python -m test_harness.test_client --url wss://api.daisyhelps.com --text "hello"
+# → see audio_chunk messages and an output.pcm file
+```
+
+### Cold start
+First request after idle has a ~10–30s warmup (torch + Silero loading). Hit `/healthz` or `/test` once before any demo.
 
 ## Troubleshooting
 

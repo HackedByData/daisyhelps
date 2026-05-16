@@ -1,5 +1,7 @@
 # Daisy Helps — Backend
 
+**Live:** https://api.daisyhelps.com/healthz
+
 Voice AI companion backend that helps tech-novice users (especially the elderly) through computer tasks one step at a time. Daisy listens by voice, sees the screen on demand via screenshots, and guides the user — she never takes actions for them.
 
 **This repo is the backend.** A separate frontend (built later with a Claude design agent) will connect via WebSocket.

@@ -27,4 +27,14 @@ A decision log. One paragraph per choice: context, decision, rationale, alternat
 **Rationale:** Low-cost UX hint; future frontend can render a "share screen?" prompt.
 **Alternatives considered:** Letting the LLM produce a structured tag (more reliable, but couples prompt + protocol; defer to a later iteration).
 
-(Later phases append more entries.)
+## Deployment plan: Render `starter` plan over `free`
+**Context:** Render free tier sleeps after inactivity and has tighter memory limits. Torch CPU is ~250MB; Silero adds a small model.
+**Decision:** Use the `starter` plan ($7/mo) to avoid sleep cycles and memory pressure during demos.
+**Rationale:** Hackathon demo reliability > $7. Free works most of the time but the cold-start delay after a sleep can push past the latency budget on the user's first interaction.
+**Alternatives considered:** Free tier (cheap, occasional OOM/sleep). Higher plans (overkill).
+
+## Custom domain: api.daisyhelps.com (not bare daisyhelps.com)
+**Context:** daisyhelps.com is purchased; the bare domain might host the future frontend.
+**Decision:** Backend lives at `api.daisyhelps.com`; bare `daisyhelps.com` left unconfigured for the future frontend.
+**Rationale:** Clean separation. No migration cost if/when the frontend ships.
+**Alternatives considered:** Bare domain for backend (forces frontend onto a subdomain later). Both on bare with path-routing (more deploy complexity).
