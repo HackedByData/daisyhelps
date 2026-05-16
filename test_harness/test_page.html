@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<!--
+  BACKEND DEBUG HARNESS — not the production frontend.
+  This page exists to verify the Daisy Helps backend without a real client.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Daisy Helps — Backend Debug Harness</title>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; max-width: 760px; margin: 24px auto; padding: 0 16px; }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    p.warn { color: #b00; font-size: 13px; margin-top: 0; }
+    .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+    input[type=text] { flex: 1; padding: 6px 8px; }
+    button { padding: 6px 12px; }
+    pre { background: #f5f5f5; padding: 12px; height: 360px; overflow: auto; font-size: 12px; }
+    .muted { color: #777; }
+  </style>
+</head>
+<body>
+  <h1>Daisy Helps — Backend Debug Harness</h1>
+  <p class="warn">⚠️ This is a debug tool, not the production frontend.</p>
+
+  <div class="row">
+    <label>Session ID:</label>
+    <input id="sid" type="text" />
+    <button id="connect">Connect</button>
+    <button id="disconnect" disabled>Disconnect</button>
+    <button id="status">Fetch /api/status</button>
+  </div>
+
+  <div class="row">
+    <input id="text" type="text" placeholder="Type a message and press Send" />
+    <button id="send" disabled>Send</button>
+  </div>
+
+  <pre id="log"></pre>
+
+  <script>
+    const sidInput = document.getElementById('sid');
+    const connectBtn = document.getElementById('connect');
+    const disconnectBtn = document.getElementById('disconnect');
+    const statusBtn = document.getElementById('status');
+    const textInput = document.getElementById('text');
+    const sendBtn = document.getElementById('send');
+    const logEl = document.getElementById('log');
+
+    let ws = null;
+
+    sidInput.value = crypto.randomUUID();
+
+    function log(line) {
+      const ts = new Date().toISOString().slice(11, 23);
+      logEl.textContent += `[${ts}] ${line}\n`;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    statusBtn.onclick = async () => {
+      try {
+        const r = await fetch('/api/status');
+        const j = await r.json();
+        log(`<< /api/status phase=${j.phase} ${j.phase_name}`);
+        log(JSON.stringify(j, null, 2));
+      } catch (e) {
+        log(`fetch /api/status failed: ${e.message}`);
+      }
+    };
+
+    connectBtn.onclick = () => {
+      const sid = sidInput.value.trim();
+      if (!sid) return;
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      const url = `${proto}://${location.host}/ws/${sid}`;
+      ws = new WebSocket(url);
+      ws.onopen = () => {
+        log(`open ${url}`);
+        connectBtn.disabled = true;
+        disconnectBtn.disabled = false;
+        sendBtn.disabled = false;
+      };
+      ws.onmessage = (ev) => log(`<< ${ev.data}`);
+      ws.onclose = () => {
+        log('close');
+        ws = null;
+        connectBtn.disabled = false;
+        disconnectBtn.disabled = true;
+        sendBtn.disabled = true;
+      };
+      ws.onerror = (e) => log(`error ${e.message || e}`);
+    };
+
+    disconnectBtn.onclick = () => { if (ws) ws.close(); };
+
+    sendBtn.onclick = () => {
+      if (!ws) return;
+      const text = textInput.value;
+      if (!text) return;
+      const msg = { type: 'user_text', text };
+      ws.send(JSON.stringify(msg));
+      log(`>> ${JSON.stringify(msg)}`);
+      textInput.value = '';
+    };
+
+    textInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !sendBtn.disabled) sendBtn.click();
+    });
+  </script>
+</body>
+</html>
