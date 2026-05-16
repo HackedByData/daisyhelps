@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from loguru import logger
 
 from backend.logging_setup import configure_logging
+from backend.readiness import READINESS
 
 TEST_PAGE_PATH = Path(__file__).resolve().parent.parent / "test_harness" / "test_page.html"
 
@@ -48,6 +49,11 @@ async def root():
         "status": "running",
         "docs": "/docs",
     })
+
+
+@app.get("/api/status")
+async def api_status():
+    return JSONResponse(READINESS)
 
 
 @app.get("/test")
