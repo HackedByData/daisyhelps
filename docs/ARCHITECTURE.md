@@ -1,25 +1,37 @@
 # Architecture
 
 ## Overview
-A FastAPI server holds a long-lived WebSocket per user. Each connection drives a streaming pipeline that turns user voice into Daisy voice, with vision attached when needed.
+A FastAPI server holds a long-lived WebSocket per user. Each connection drives a streaming pipeline that turns user voice into Daisy voice, with vision attached when a fresh screenshot exists.
 
 ## Components
-- **WebSocket handler** (`backend/main.py`) — accepts the connection, dispatches incoming messages, emits status + audio + text.
-- **Session** (`backend/session.py`) — per-connection state: language, conversation history, pending screenshot, current turn task.
-- **VAD** (`backend/pipeline/vad.py`) — Silero-based silence detection; yields complete utterances.
-- **STT** (`backend/pipeline/stt.py`) — Groq Whisper Large v3 Turbo behind a provider interface.
-- **LLM** (`backend/pipeline/llm.py`) — Claude Haiku 4.5 for text turns, Claude Sonnet 4.6 for screenshot turns.
-- **TTS** (`backend/pipeline/tts.py`) — ElevenLabs streaming, sentence-buffered.
+| Component | File | Responsibility |
+|---|---|---|
+| WebSocket handler | `backend/main.py` | Accepts connections, parses messages, runs the turn task |
+| Session | `backend/session.py` | Per-connection state: language, history, pending screenshot, current turn |
+| Messages | `backend/messages.py` | Pydantic models + outgoing helpers for every wire message |
+| Prompts | `backend/prompts.py` | DAISY_PROMPT_EN, DAISY_PROMPT_ES, `get_prompt()` |
+| VAD | `backend/pipeline/vad.py` | `VADBuffer` over silero-vad: PCM in → utterance bytes out |
+| STT | `backend/pipeline/stt.py` | `STTProvider` interface + `GroqWhisperSTT` |
+| LLM | `backend/pipeline/llm.py` | `route_model()` + `stream_response()` async generator |
+| TTS | `backend/pipeline/tts.py` | `stream_tts()` async generator (ElevenLabs, sentence-buffered) |
+| Config | `backend/config.py` | pydantic-settings-loaded env vars |
+| Logging | `backend/logging_setup.py` | loguru configuration |
 
 ## Data flow
 ```
-ws audio_chunk → VADBuffer → utterance → STT → transcript →
-LLM stream (Sonnet if pending screenshot < 60s else Haiku) →
-TTS sentence-buffered stream → audio_chunk messages → audio_end
+ws audio_chunk → VADBuffer.ingest → utterance bytes → STT.transcribe →
+transcript msg →
+LLM (Sonnet if has_image else Haiku) → text deltas →
+  ├─ daisy_text(partial=true) per delta
+  └─ TTS sentence-buffered stream →
+       └─ audio_chunk msgs → audio_end → daisy_text(partial=false) full text
 ```
 
 ## Latency budget
-End-of-user-speech → first audio byte: **< 2.5s**. Stream at every stage.
+End-of-user-speech to first audio byte: **< 2.5s**. Stream at every stage; never wait for full output from a component before starting the next.
+
+## Interrupt
+Each turn runs as `session.current_turn_task: asyncio.Task`. On `interrupt`, the handler `.cancel()`s the task. The TTS async generator raises `CancelledError`, closes the ElevenLabs HTTP, and the handler emits `audio_end` + `status:listening`. Target: < 200ms.
 
 ## Decisions
 See [DECISIONS.md](DECISIONS.md).
