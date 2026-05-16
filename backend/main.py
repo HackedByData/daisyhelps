@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import re
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -24,6 +25,8 @@ from backend.messages import (
     UserTextMessage,
     audio_chunk_msg,
     audio_end_msg,
+    clear_indicator_msg,
+    click_indicator_msg,
     daisy_text_msg,
     error_msg,
     parse_client_message,
@@ -31,6 +34,7 @@ from backend.messages import (
     transcript_msg,
 )
 from backend.pipeline.llm import stream_response
+from backend.pipeline.locator import locate_click_target
 from backend.pipeline.stt import make_stt_provider
 from backend.pipeline.tts import stream_tts
 from backend.pipeline.vad import VADBuffer
@@ -46,6 +50,36 @@ _VISUAL_HINT_WORDS = (
     "pantalla", "página", "ver", "mirar", "mostrar", "haz clic", "botón", "ventana",
     "correo", "pestaña", "navegador", "abrir",
 )
+
+# Observational "open" patterns to strip before scanning for click intent:
+# e.g. "is open", "is already open", "was still open", "'s open".
+# Python stdlib re doesn't support variable-length lookbehinds, so we
+# pre-strip these phrases instead of trying to write one giant pattern.
+_OBSERVATIONAL_OPEN_RE = re.compile(
+    r"\b(?:is|was|are|were|'s|s)\s+(?:\w+\s+){0,3}open\b",
+    re.IGNORECASE,
+)
+
+
+class _ClickIntentMatcher:
+    """Acts like a compiled regex (exposes .search) but pre-strips observational
+    'is/was/are open' phrases so they don't trigger on the bare 'open' keyword."""
+
+    def __init__(self, pattern: re.Pattern[str]):
+        self._pattern = pattern
+
+    def search(self, text: str):
+        cleaned = _OBSERVATIONAL_OPEN_RE.sub(" ", text)
+        return self._pattern.search(cleaned)
+
+
+# Imperative verbs in Daisy's response that indicate she's asking the user to act
+# on a specific UI element. Used to gate the click-indicator locator call.
+_CLICK_INTENT_RE = _ClickIntentMatcher(re.compile(
+    r"\b(click|tap|press|select|choose|open|hit"
+    r"|haz\s+clic|presiona|toca|selecciona|abre|elige|pulsa)\b",
+    re.IGNORECASE,
+))
 
 session_store = SessionStore()
 stt_provider = None  # type: ignore[assignment]
@@ -188,6 +222,7 @@ async def _start_turn(
 
 
 async def _cancel_turn(websocket: WebSocket, session: Session, send_audio_end: bool = True):
+    # Cancel the in-flight turn first.
     task = session.current_turn_task
     if task and not task.done():
         task.cancel()
@@ -196,6 +231,17 @@ async def _cancel_turn(websocket: WebSocket, session: Session, send_audio_end: b
         except (asyncio.CancelledError, Exception):
             pass
     session.current_turn_task = None
+
+    # And any pending indicator call from this turn.
+    itask = session.current_indicator_task
+    if itask and not itask.done():
+        itask.cancel()
+        try:
+            await itask
+        except (asyncio.CancelledError, Exception):
+            pass
+    session.current_indicator_task = None
+
     if send_audio_end and session.status == "speaking":
         try:
             await websocket.send_json(audio_end_msg())
@@ -203,6 +249,37 @@ async def _cancel_turn(websocket: WebSocket, session: Session, send_audio_end: b
             session.set_status("listening")
         except Exception:
             pass
+
+
+async def _emit_indicator(
+    websocket: WebSocket,
+    image_bytes: bytes,
+    guidance_text: str,
+    language: str,
+):
+    """Best-effort: ask the locator for a click target, send click_indicator if found.
+
+    Swallows all exceptions — the indicator is additive and must never disturb
+    the rest of the turn.
+    """
+    try:
+        target = await locate_click_target(image_bytes, guidance_text, language)
+    except Exception as e:
+        logger.warning(f"indicator: locator raised ({e}); skipping")
+        return
+    if target is None:
+        return
+    try:
+        await websocket.send_json(click_indicator_msg(
+            x=target.x,
+            y=target.y,
+            ref_width=target.ref_width,
+            ref_height=target.ref_height,
+            label=target.label,
+            confidence=None,
+        ))
+    except Exception as e:
+        logger.warning(f"indicator: send failed ({e})")
 
 
 async def _run_turn(
@@ -213,6 +290,14 @@ async def _run_turn(
 ):
     """Run a full turn: STT (if audio) → LLM stream → TTS stream."""
     try:
+        # Clear any prior turn's click indicator — fulfills the "indicator clears
+        # on next user utterance" lifecycle. Send-errors are swallowed; the rest
+        # of the turn must proceed regardless.
+        try:
+            await websocket.send_json(clear_indicator_msg())
+        except Exception:
+            pass
+
         # Transcribe if audio
         if utterance_audio is not None:
             session.set_status("listening")
@@ -270,6 +355,14 @@ async def _run_turn(
         session.append_assistant(full)
 
         await websocket.send_json(audio_end_msg())
+
+        # Click-indicator: best-effort, post-audio. Only fires when a screenshot
+        # was actually consumed this turn AND Daisy asked the user to click.
+        if image_bytes is not None and _CLICK_INTENT_RE.search(full):
+            session.current_indicator_task = asyncio.create_task(
+                _emit_indicator(websocket, image_bytes, full, session.language)
+            )
+
         session.set_status("idle")
         await websocket.send_json(status_msg("idle"))
 
