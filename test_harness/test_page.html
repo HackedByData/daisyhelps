@@ -8,14 +8,14 @@
   <meta charset="utf-8" />
   <title>Daisy Helps — Backend Debug Harness</title>
   <style>
-    body { font-family: -apple-system, system-ui, sans-serif; max-width: 760px; margin: 24px auto; padding: 0 16px; }
+    body { font-family: -apple-system, system-ui, sans-serif; max-width: 800px; margin: 24px auto; padding: 0 16px; }
     h1 { font-size: 18px; margin: 0 0 4px; }
     p.warn { color: #b00; font-size: 13px; margin-top: 0; }
-    .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
-    input[type=text] { flex: 1; padding: 6px 8px; }
+    .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
+    input[type=text] { flex: 1; padding: 6px 8px; min-width: 200px; }
     button { padding: 6px 12px; }
     pre { background: #f5f5f5; padding: 12px; height: 360px; overflow: auto; font-size: 12px; }
-    .muted { color: #777; }
+    .status { font-weight: bold; color: #555; }
   </style>
 </head>
 <body>
@@ -27,12 +27,27 @@
     <input id="sid" type="text" />
     <button id="connect">Connect</button>
     <button id="disconnect" disabled>Disconnect</button>
-    <button id="status">Fetch /api/status</button>
   </div>
 
   <div class="row">
-    <input id="text" type="text" placeholder="Type a message and press Send" />
-    <button id="send" disabled>Send</button>
+    <label>Language:</label>
+    <select id="lang">
+      <option value="en">English</option>
+      <option value="es">Spanish</option>
+    </select>
+    <button id="lang-change" disabled>Apply</button>
+  </div>
+
+  <div class="row">
+    <button id="mic-start" disabled>Start mic</button>
+    <button id="mic-stop" disabled>Stop mic</button>
+    <button id="interrupt" disabled>Interrupt</button>
+    <span class="status" id="status">disconnected</span>
+  </div>
+
+  <div class="row">
+    <input id="text" type="text" placeholder="Type a message (user_text)" />
+    <button id="send-text" disabled>Send</button>
   </div>
 
   <pre id="log"></pre>
@@ -41,12 +56,26 @@
     const sidInput = document.getElementById('sid');
     const connectBtn = document.getElementById('connect');
     const disconnectBtn = document.getElementById('disconnect');
-    const statusBtn = document.getElementById('status');
+    const micStartBtn = document.getElementById('mic-start');
+    const micStopBtn = document.getElementById('mic-stop');
+    const interruptBtn = document.getElementById('interrupt');
+    const langSelect = document.getElementById('lang');
+    const langChangeBtn = document.getElementById('lang-change');
     const textInput = document.getElementById('text');
-    const sendBtn = document.getElementById('send');
+    const sendTextBtn = document.getElementById('send-text');
     const logEl = document.getElementById('log');
+    const statusEl = document.getElementById('status');
 
     let ws = null;
+    let audioCtx = null;
+    let micStream = null;
+    let micNode = null;
+    let micSource = null;
+    let micSeq = 0;
+
+    // Playback queue for 24 kHz PCM
+    let playbackCtx = null;
+    let playbackTime = 0;
 
     sidInput.value = crypto.randomUUID();
 
@@ -56,54 +85,180 @@
       logEl.scrollTop = logEl.scrollHeight;
     }
 
-    statusBtn.onclick = async () => {
-      try {
-        const r = await fetch('/api/status');
-        const j = await r.json();
-        log(`<< /api/status phase=${j.phase} ${j.phase_name}`);
-        log(JSON.stringify(j, null, 2));
-      } catch (e) {
-        log(`fetch /api/status failed: ${e.message}`);
-      }
-    };
+    function setEnabled(connected) {
+      connectBtn.disabled = connected;
+      disconnectBtn.disabled = !connected;
+      micStartBtn.disabled = !connected;
+      micStopBtn.disabled = true;
+      interruptBtn.disabled = !connected;
+      sendTextBtn.disabled = !connected;
+      langChangeBtn.disabled = !connected;
+    }
+
+    setEnabled(false);
+
+    // --- WS ---
 
     connectBtn.onclick = () => {
       const sid = sidInput.value.trim();
-      if (!sid) return;
       const proto = location.protocol === 'https:' ? 'wss' : 'ws';
       const url = `${proto}://${location.host}/ws/${sid}`;
       ws = new WebSocket(url);
+
       ws.onopen = () => {
         log(`open ${url}`);
-        connectBtn.disabled = true;
-        disconnectBtn.disabled = false;
-        sendBtn.disabled = false;
+        // Send initial config
+        ws.send(JSON.stringify({ type: 'config', language: langSelect.value }));
+        log(`>> config language=${langSelect.value}`);
+        setEnabled(true);
       };
-      ws.onmessage = (ev) => log(`<< ${ev.data}`);
+
+      ws.onmessage = (ev) => {
+        let msg;
+        try { msg = JSON.parse(ev.data); } catch { log(`<< (non-json) ${ev.data}`); return; }
+        handleServerMessage(msg);
+      };
+
       ws.onclose = () => {
         log('close');
         ws = null;
-        connectBtn.disabled = false;
-        disconnectBtn.disabled = true;
-        sendBtn.disabled = true;
+        setEnabled(false);
+        statusEl.textContent = 'disconnected';
+        stopMic();
       };
       ws.onerror = (e) => log(`error ${e.message || e}`);
     };
 
     disconnectBtn.onclick = () => { if (ws) ws.close(); };
 
-    sendBtn.onclick = () => {
+    // --- Server message handling ---
+
+    function handleServerMessage(msg) {
+      switch (msg.type) {
+        case 'status':
+          statusEl.textContent = msg.state;
+          log(`<< status ${msg.state}`);
+          break;
+        case 'transcript':
+          log(`<< transcript final=${msg.final} ${JSON.stringify(msg.text)}`);
+          break;
+        case 'daisy_text':
+          log(`<< daisy_text partial=${msg.partial} ${JSON.stringify(msg.text)}`);
+          break;
+        case 'audio_chunk':
+          playAudioChunk(msg.data);
+          break;
+        case 'audio_end':
+          log('<< audio_end');
+          break;
+        case 'screenshot_request':
+          log(`<< screenshot_request ${msg.reason || ''}`);
+          break;
+        case 'error':
+          log(`<< error ${msg.code} ${msg.message}`);
+          break;
+        default:
+          log(`<< ${JSON.stringify(msg)}`);
+      }
+    }
+
+    // --- Mic capture at 16 kHz mono PCM ---
+
+    micStartBtn.onclick = async () => {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+      }
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: {
+        sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true,
+      }});
+      micSource = audioCtx.createMediaStreamSource(micStream);
+
+      // ScriptProcessor is deprecated but simplest. AudioWorklet would be better.
+      const bufferSize = 1600;  // 100ms at 16kHz
+      micNode = audioCtx.createScriptProcessor(bufferSize, 1, 1);
+      micNode.onaudioprocess = (e) => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        const float32 = e.inputBuffer.getChannelData(0);
+        const int16 = new Int16Array(float32.length);
+        for (let i = 0; i < float32.length; i++) {
+          const s = Math.max(-1, Math.min(1, float32[i]));
+          int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+        }
+        const bytes = new Uint8Array(int16.buffer);
+        let b64 = '';
+        for (let i = 0; i < bytes.length; i++) b64 += String.fromCharCode(bytes[i]);
+        b64 = btoa(b64);
+        ws.send(JSON.stringify({ type: 'audio_chunk', data: b64, sequence: micSeq++ }));
+      };
+      micSource.connect(micNode);
+      micNode.connect(audioCtx.destination);
+
+      micStartBtn.disabled = true;
+      micStopBtn.disabled = false;
+      log('mic started');
+    };
+
+    micStopBtn.onclick = () => stopMic();
+
+    function stopMic() {
+      if (micNode) { try { micNode.disconnect(); } catch {} micNode = null; }
+      if (micSource) { try { micSource.disconnect(); } catch {} micSource = null; }
+      if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+      micStartBtn.disabled = !ws;
+      micStopBtn.disabled = true;
+      log('mic stopped');
+    }
+
+    // --- Audio playback at 24 kHz mono ---
+
+    function playAudioChunk(b64) {
+      if (!playbackCtx) {
+        playbackCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+        playbackTime = playbackCtx.currentTime;
+      }
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const int16 = new Int16Array(bytes.buffer);
+      const float32 = new Float32Array(int16.length);
+      for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
+      const audioBuffer = playbackCtx.createBuffer(1, float32.length, 24000);
+      audioBuffer.getChannelData(0).set(float32);
+      const src = playbackCtx.createBufferSource();
+      src.buffer = audioBuffer;
+      src.connect(playbackCtx.destination);
+      const startAt = Math.max(playbackCtx.currentTime, playbackTime);
+      src.start(startAt);
+      playbackTime = startAt + audioBuffer.duration;
+    }
+
+    // --- Other actions ---
+
+    interruptBtn.onclick = () => {
+      if (ws) {
+        ws.send(JSON.stringify({ type: 'interrupt' }));
+        log('>> interrupt');
+      }
+    };
+
+    langChangeBtn.onclick = () => {
+      if (ws) {
+        ws.send(JSON.stringify({ type: 'language_change', language: langSelect.value }));
+        log(`>> language_change ${langSelect.value}`);
+      }
+    };
+
+    sendTextBtn.onclick = () => {
       if (!ws) return;
       const text = textInput.value;
       if (!text) return;
-      const msg = { type: 'user_text', text };
-      ws.send(JSON.stringify(msg));
-      log(`>> ${JSON.stringify(msg)}`);
+      ws.send(JSON.stringify({ type: 'user_text', text }));
+      log(`>> user_text ${JSON.stringify(text)}`);
       textInput.value = '';
     };
 
     textInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !sendBtn.disabled) sendBtn.click();
+      if (e.key === 'Enter' && !sendTextBtn.disabled) sendTextBtn.click();
     });
   </script>
 </body>
