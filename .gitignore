@@ -1,0 +1,26 @@
+# Secrets and local config
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.pytest_cache/
+*.egg-info/
+
+# Editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build / dist
+build/
+dist/
+
+# Audio output from test harness
+output.pcm
+output.wav
