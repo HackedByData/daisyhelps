@@ -3,7 +3,7 @@
 **Date:** 2026-05-16
 **Owner:** Devin
 **Source prompt:** "We will be making this a desktop downloadable app. Review the codebase and make any changes necessary to download this app locally onto a computer. We will use daisyhelps.com as a landing page to download the app. Change any required documentation to reflect this pivot."
-**Status:** Awaiting user review
+**Status:** Approved for implementation
 **Depends on:** Phase 5 backend (deployed at `api.daisyhelps.com`) — pending DNS/Render steps in `TODO.md`
 **Supersedes (in part):** The "Production frontend (backend is ready; contract is `docs/API.md`)" row in `CLAUDE.md`'s deferred-features table. The frontend is no longer deferred; it is the focus of this pivot.
 
@@ -300,9 +300,9 @@ Detailed plan goes to `docs/superpowers/plans/2026-05-16-daisy-helps-desktop.md`
 
 ---
 
-## 10. Open questions for review
+## 10. Settled questions
 
-1. **Landing page copy + visual identity** — do we need a real designer pass, or is a clean utilitarian page acceptable for v1? (Recommendation: utilitarian v1; design pass before any external marketing push.)
-2. **Tray-icon-only mode** — should the app live in the tray and pop on hotkey, or always show a window? (Recommendation: window-by-default, tray as a "minimize-to-tray on close" option in settings.)
-3. **Telemetry / crash reporting** — Sentry? None? (Recommendation: none at v1; revisit if installs grow.)
-4. **App name in installer** — "Daisy Helps" with the space, or "DaisyHelps"? (Recommendation: "Daisy Helps" — matches the verbal product name elderly users will hear.)
+1. **Landing page copy + visual identity** — **Utilitarian v1.** Clean, high-contrast, large-type hero with a single "Download for Windows" CTA, a 30-second value prop, a short list of what Daisy does ("listens to your voice", "sees your screen when you ask", "guides one step at a time"), a small SmartScreen-warning explainer, and a footer with a contact email. Real design pass deferred until there's an external marketing push.
+2. **Tray-icon-only mode** — **Window-by-default with minimize-to-tray.** App launches a normal window. Closing the window minimizes to the system tray (right-click → Quit fully exits). This matches what elderly users expect from Windows apps while keeping Daisy reachable from the tray when they're working in another app. No global hotkey at v1 (would need a tutorial; elderly users aren't keyboard-shortcut natives).
+3. **Telemetry / crash reporting** — **None at v1.** No Sentry, no analytics. Revisit if installs grow and we need crash visibility. Keeps the privacy story trivially explainable on the landing page ("we don't track anything").
+4. **Installer / app name** — **`DaisyHelps`** (no space). Used for the binary, the Add/Remove Programs entry, the app id (`com.daisyhelps.app`), and the Start Menu shortcut. The verbal/marketing name "Daisy Helps" (with the space) is preserved in window title, landing-page copy, and Daisy's spoken self-references.
