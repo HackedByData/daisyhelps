@@ -1,6 +1,7 @@
 """ElevenLabs streaming TTS. Sentence-buffers an incoming text stream and yields PCM audio chunks."""
 from __future__ import annotations
 
+import asyncio
 import re
 from typing import AsyncIterator, Literal
 
@@ -54,9 +55,17 @@ async def stream_tts(
             text=text,
             model_id=MODEL_ID,
         )
-        async for chunk in stream:
-            if chunk:
-                yield chunk
+        try:
+            async for chunk in stream:
+                if chunk:
+                    yield chunk
+        except asyncio.CancelledError:
+            # Ensure the underlying HTTP connection closes promptly
+            try:
+                await stream.aclose()
+            except Exception:
+                pass
+            raise
 
     # First emit accumulated full sentences from the input stream
     async for delta in text_stream:
