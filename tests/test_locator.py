@@ -57,10 +57,10 @@ def _text_block(text: str):
 
 
 def _mock_client_returning(content_blocks):
-    """Build a mock that quacks like AsyncAnthropic for a single .messages.create call."""
+    """Build a mock that quacks like AsyncAnthropic for a single .beta.messages.create call."""
     response = SimpleNamespace(content=content_blocks)
     client = MagicMock()
-    client.messages.create = AsyncMock(return_value=response)
+    client.beta.messages.create = AsyncMock(return_value=response)
     return client
 
 
@@ -73,12 +73,16 @@ def test_locate_click_target_returns_coords_on_success(monkeypatch):
 
     assert result == ClickTarget(x=842, y=537, ref_width=1920, ref_height=1080, label="Join button")
     # Verify we asked Sonnet with computer tool sized to the screenshot
-    args, kwargs = client.messages.create.call_args
+    args, kwargs = client.beta.messages.create.call_args
     assert kwargs["model"] == "claude-sonnet-4-6"
     tool = kwargs["tools"][0]
     assert tool["type"] == "computer_20250124"
     assert tool["display_width_px"] == 1920
     assert tool["display_height_px"] == 1080
+    assert kwargs.get("betas") == ["computer-use-2025-01-24"]
+    # And the call must be on the beta path, not the stable one.
+    client.beta.messages.create.assert_awaited_once()
+    client.messages.create.assert_not_called()
 
 
 def test_locate_click_target_returns_none_when_no_tool_use(monkeypatch):
@@ -102,7 +106,7 @@ def test_locate_click_target_returns_none_when_out_of_bounds(monkeypatch):
 def test_locate_click_target_returns_none_on_exception(monkeypatch):
     png = _fake_png(1920, 1080)
     client = MagicMock()
-    client.messages.create = AsyncMock(side_effect=RuntimeError("network down"))
+    client.beta.messages.create = AsyncMock(side_effect=RuntimeError("network down"))
     monkeypatch.setattr(locator_mod, "_client", lambda: client)
 
     result = asyncio.run(locate_click_target(png, "Click somewhere.", "en"))
@@ -126,12 +130,12 @@ def test_locate_click_target_returns_none_when_action_is_not_left_click(monkeypa
 def test_locate_click_target_returns_none_on_bad_png(monkeypatch):
     # No client should be needed — png_dimensions raises before any API call.
     client = MagicMock()
-    client.messages.create = AsyncMock()
+    client.beta.messages.create = AsyncMock()
     monkeypatch.setattr(locator_mod, "_client", lambda: client)
 
     result = asyncio.run(locate_click_target(b"not a png at all", "Click somewhere.", "en"))
     assert result is None
-    client.messages.create.assert_not_called()
+    client.beta.messages.create.assert_not_called()
 
 
 def test_locate_click_target_trims_long_label(monkeypatch):

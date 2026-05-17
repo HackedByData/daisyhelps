@@ -16,6 +16,7 @@ from backend.config import settings
 
 MODEL_LOCATOR = "claude-sonnet-4-6"
 TOOL_TYPE = "computer_20250124"
+BETA = "computer-use-2025-01-24"
 MAX_TOKENS = 256
 MAX_LABEL_CHARS = 80
 
@@ -115,12 +116,13 @@ async def locate_click_target(
 
     try:
         client = _client()
-        response = await client.messages.create(
+        response = await client.beta.messages.create(
             model=MODEL_LOCATOR,
             max_tokens=MAX_TOKENS,
             system=_SYSTEM_PROMPT,
             tools=[tool],
             messages=[{"role": "user", "content": user_content}],
+            betas=[BETA],
         )
     except Exception as e:
         logger.warning(f"locator: Claude call failed ({e}); skipping indicator")
