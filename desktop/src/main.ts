@@ -258,11 +258,14 @@ function createWindow(): void {
     },
   });
   mainWindow.loadURL('app://localhost/index.html');
-  mainWindow.on('close', (e) => {
-    if (!quittingForReal) {
-      e.preventDefault();
-      mainWindow?.hide();
-    }
+  // Closing the main window quits the whole app — overlay, indicator,
+  // subtitle, and tray all tear down together. Minimize (-) still works
+  // natively and keeps the taskbar icon so the user can restore from there.
+  // Hiding to tray on demand is still available via the tray menu's
+  // "Hide Daisy" item.
+  mainWindow.on('close', () => {
+    quittingForReal = true;
+    app.quit();
   });
   mainWindow.on('closed', () => { mainWindow = null; });
 }
@@ -470,6 +473,15 @@ app.whenReady().then(() => {
   // a future refactor that conditionally skips createOverlay() a TypeScript
   // error rather than a silent no-op listener registration.
   if (overlayWindow) overlayWindow.on('move', () => repositionSubtitle());
+
+  // The corner daisy is the stand-in for the big window when it's hidden.
+  // Tie overlay visibility directly to the main window's hide/show events so
+  // every minimize path (handoff modal OK, close-to-tray, tray "Hide Daisy",
+  // tray-icon toggle) reveals the overlay, and every restore path hides it.
+  if (mainWindow) {
+    mainWindow.on('hide', () => overlayWindow?.show());
+    mainWindow.on('show', () => overlayWindow?.hide());
+  }
   setupAutoUpdate();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
