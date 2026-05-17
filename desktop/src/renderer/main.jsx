@@ -84,6 +84,9 @@ function useDaisyBackend() {
   // Click indicator hint from backend (label of the thing to click).
   // Suppresses auto-listen so the user can actually go click the target.
   const [clickHint, setClickHint]           = useState(null);
+  const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
+  const subtitlesEnabledRef = useRef(true);
+  useEffect(() => { subtitlesEnabledRef.current = subtitlesEnabled; }, [subtitlesEnabled]);
   // Ref so we can read latest values inside the audio_end handler closure.
   const daisyTextRef = useRef('');
   useEffect(() => { daisyTextRef.current = daisyText; }, [daisyText]);
@@ -114,6 +117,7 @@ function useDaisyBackend() {
   const SILENCE_TIMEOUT_MS = 5000;
   const silenceTimerRef = useRef(null);
   const lastSpeechAtRef = useRef(0);
+  const subtitleLingerRef = useRef(null);
 
   const send = useCallback((msg) => {
     const ws = wsRef.current;
@@ -182,14 +186,26 @@ function useDaisyBackend() {
             }
             break;
           case 'daisy_text':
+            // Cancel any pending linger-hide — new content arrives, the pill
+            // should stay (or come back) visible immediately.
+            if (subtitleLingerRef.current) {
+              clearTimeout(subtitleLingerRef.current);
+              subtitleLingerRef.current = null;
+            }
             if (msg.partial) {
               partialRef.current += msg.text;
               setDaisyText(partialRef.current);
               setDaisyStreaming(true);
+              if (subtitlesEnabledRef.current) {
+                window.daisyAPI?.subtitleShow?.(partialRef.current);
+              }
             } else {
               setDaisyText(msg.text);
               partialRef.current = '';
               setDaisyStreaming(false);
+              if (subtitlesEnabledRef.current) {
+                window.daisyAPI?.subtitleShow?.(msg.text);
+              }
             }
             break;
           case 'audio_chunk':
@@ -197,6 +213,12 @@ function useDaisyBackend() {
             break;
           case 'audio_end':
             setDaisyStreaming(false);
+            // Linger the subtitle pill 4s after speech ends, then clear.
+            if (subtitleLingerRef.current) clearTimeout(subtitleLingerRef.current);
+            subtitleLingerRef.current = setTimeout(() => {
+              window.daisyAPI?.subtitleClear?.();
+              subtitleLingerRef.current = null;
+            }, 4000);
             // Conversational continuation: if Daisy ended with a question and
             // isn't currently pointing the user to click something, auto-start
             // listening so the user doesn't have to click the daisy each turn.
@@ -245,6 +267,19 @@ function useDaisyBackend() {
       closed = true;
       try { wsRef.current?.close(); } catch {}
     };
+  }, []);
+
+  // Subtitle setting — load initial value from main and listen for changes
+  // (tray menu or other windows can toggle it; we mirror via broadcast).
+  useEffect(() => {
+    let mounted = true;
+    void window.daisyAPI?.subtitleEnabledGet?.().then((enabled) => {
+      if (mounted) setSubtitlesEnabled(!!enabled);
+    });
+    window.daisyAPI?.onSubtitleEnabledChanged?.((enabled) => {
+      if (mounted) setSubtitlesEnabled(!!enabled);
+    });
+    return () => { mounted = false; };
   }, []);
 
   function playPcmChunk(b64) {
@@ -313,6 +348,11 @@ function useDaisyBackend() {
     setDaisyText('');
     partialRef.current = '';
     setDaisyStreaming(false);
+    if (subtitleLingerRef.current) {
+      clearTimeout(subtitleLingerRef.current);
+      subtitleLingerRef.current = null;
+    }
+    window.daisyAPI?.subtitleClear?.();
     window.daisyAPI?.clearIndicator?.();
     setClickHint(null);
   }, [send]);
@@ -467,6 +507,11 @@ function useDaisyBackend() {
     setUserText('');
     setDaisyText('');
     setDaisyStreaming(false);
+    if (subtitleLingerRef.current) {
+      clearTimeout(subtitleLingerRef.current);
+      subtitleLingerRef.current = null;
+    }
+    window.daisyAPI?.subtitleClear?.();
   }, [send]);
 
   // "Goodbye, Daisy" → tear everything down and quit Electron.
@@ -501,6 +546,7 @@ function useDaisyBackend() {
     startTalking, stopTalking, stopDaisy,
     respondConsent, changeLanguage, endSession, sendUserText, clearError,
     sendScreenshot, primeMicPermission,
+    subtitlesEnabled,
   };
 }
 
