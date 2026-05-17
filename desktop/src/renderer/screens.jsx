@@ -52,6 +52,9 @@ const COPY = {
     sampleDaisy: 'I\u2019ll help you join your Zoom call with your doctor. First, let\u2019s find the email from her office. Can you tell me what you see on your screen right now?',
     sampleUser: 'I see a lot of icons. There\u2019s one that says mail.',
     sampleSpeaking: 'Wonderful. Go ahead and click on the one that says Mail. Take your time \u2014 I\u2019ll wait.',
+    handoffTitle: 'I\u2019m moving to the corner.',
+    handoffBody: 'I\u2019ll watch from up here so I can see your screen and help you with what you\u2019re doing. Click me anytime, or just talk. To bring this big window back, click the little daisy near your clock (bottom-right) and choose \u201cShow Daisy.\u201d',
+    handoffBtn: 'Got it',
   },
   es: {
     tagline: 'Ayuda paciente para tu computadora',
@@ -101,6 +104,9 @@ const COPY = {
     sampleDaisy: 'Te voy a ayudar a entrar a tu llamada de Zoom con tu doctora. Primero, busquemos el correo de su oficina. \u00bfMe puedes decir qu\u00e9 ves en tu pantalla?',
     sampleUser: 'Veo muchos iconos. Hay uno que dice correo.',
     sampleSpeaking: 'Perfecto. Haz clic en el que dice Correo. Tomate tu tiempo \u2014 yo te espero.',
+    handoffTitle: 'Me muevo a la esquina.',
+    handoffBody: 'Te voy a acompa\u00f1ar desde aqu\u00ed arriba para ver tu pantalla y ayudarte con lo que est\u00e1s haciendo. Haz clic en m\u00ed cuando me necesites, o h\u00e1blame. Para volver a abrir esta ventana grande, haz clic en la florecita junto al reloj (abajo a la derecha) y elige "Mostrar Daisy."',
+    handoffBtn: 'Entendido',
   },
 };
 
@@ -329,6 +335,51 @@ function ScreenshotConsent({ lang, reason, onYes, onNo }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Hand-off modal — shown right after the user grants the first
+// screenshot. The OK button hides the big window and persists the
+// share_screen_remembered flag (App owns those side effects).
+// ─────────────────────────────────────────────────────────────
+function HandoffModal({ lang, onConfirm }) {
+  const t = COPY[lang];
+  const ref = React.useRef(null);
+  React.useEffect(() => { ref.current?.focus(); }, []);
+  return (
+    <div className="modal-scrim" role="dialog" aria-modal="true" aria-labelledby="handoff-title">
+      <div className="modal">
+        <h2 id="handoff-title">{t.handoffTitle}</h2>
+        {/* Inline SVG: window-rectangle -> arrow -> daisy in top-right corner.
+            Conveys the spatial change without relying on text alone. */}
+        <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0 12px' }}>
+          <svg width="220" height="100" viewBox="0 0 220 100" aria-hidden="true">
+            {/* Big window */}
+            <rect x="10" y="20" width="100" height="64" rx="6"
+                  fill="#FBF7EE" stroke="#2D8659" strokeWidth="2" />
+            <line x1="10" y1="32" x2="110" y2="32" stroke="#2D8659" strokeWidth="2" />
+            {/* Arrow */}
+            <path d="M 120 50 L 165 22" stroke="#ED8B33" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+            <path d="M 158 18 L 165 22 L 161 29" stroke="#ED8B33" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            {/* Corner daisy (simplified) */}
+            <circle cx="180" cy="22" r="6" fill="#F4C24A" />
+            <circle cx="180" cy="14" r="4" fill="#FBF7EE" stroke="#ED8B33" strokeWidth="1.5" />
+            <circle cx="188" cy="22" r="4" fill="#FBF7EE" stroke="#ED8B33" strokeWidth="1.5" />
+            <circle cx="180" cy="30" r="4" fill="#FBF7EE" stroke="#ED8B33" strokeWidth="1.5" />
+            <circle cx="172" cy="22" r="4" fill="#FBF7EE" stroke="#ED8B33" strokeWidth="1.5" />
+          </svg>
+        </div>
+        <div className="modal__reason">
+          <span>{t.handoffBody}</span>
+        </div>
+        <div className="modal__actions">
+          <button ref={ref} className="btn btn--primary btn--xl" onClick={onConfirm} style={{ flex: 1 }}>
+            {t.handoffBtn}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Settings sheet
 // ─────────────────────────────────────────────────────────────
 function SettingsSheet({
@@ -391,4 +442,4 @@ function GoodbyeScreen({ lang, onAgain }) {
   );
 }
 
-Object.assign(window, { COPY, TopBar, WelcomeScreen, ConversationScreen, ActionBar, ScreenshotConsent, SettingsSheet, GoodbyeScreen });
+Object.assign(window, { COPY, TopBar, WelcomeScreen, ConversationScreen, ActionBar, ScreenshotConsent, HandoffModal, SettingsSheet, GoodbyeScreen });
