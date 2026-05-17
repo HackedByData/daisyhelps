@@ -2,13 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Daisy Helps — A patient voice helper for your computer</title>
-  <meta name="description" content="Daisy Helps is a friendly voice companion that walks you through computer tasks, one step at a time. Free download for Windows." />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Daisy Helps — a patient helper for the digital world</title>
+  <meta name="description" content="Daisy is a voice-first computer companion built for people who find computers exhausting. Private by design. Patient by default. Free for Windows." />
   <meta property="og:title" content="Daisy Helps" />
-  <meta property="og:description" content="A patient voice helper for your computer." />
+  <meta property="og:description" content="A patient voice-first companion for the digital world." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://daisyhelps.com/" />
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap" rel="stylesheet" />
@@ -16,63 +17,398 @@
 </head>
 <body>
 
-  <header>
-    <div class="brand">
-      <img src="assets/daisy_logo__1_-removebg-preview.png" alt="Daisy" class="brand-logo" />
-      <span class="brand-helps">helps</span>
+<!-- ──────────────── Nav ──────────────── -->
+<header class="nav" id="nav">
+  <div class="wrap nav__inner">
+    <a href="#top" class="brand" aria-label="Daisy Helps — home">
+      <img class="brand__mark" src="assets/daisy_logo__1_-removebg-preview.png" alt="" />
+      <span class="brand__name">daisy<em>.</em></span>
+    </a>
+    <nav class="nav__links" aria-label="Primary">
+      <a href="#promises">Our promises</a>
+      <a href="#how">How it works</a>
+      <a href="#faq">Questions</a>
+      <a href="#install" class="btn btn--primary">Install Daisy</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ──────────────── Hero ──────────────── -->
+<section class="hero" id="top">
+  <div class="wrap hero__grid">
+    <div>
+      <div class="hero__tag">
+        <span class="pip" aria-hidden="true">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 12 10 17 19 7"></polyline></svg>
+        </span>
+        Free · Made for humans · v0.1.0
+      </div>
+      <h1>
+        A <em>patient</em> helper<br />
+        for the digital world.
+      </h1>
+      <p class="lede">
+        Daisy listens, answers, and stays out of the way. She's built for anyone
+        who's ever felt rushed by a computer — and for the people who love them.
+      </p>
+      <div class="hero__cta">
+        <a href="/download" class="btn btn--primary btn--xl">
+          Install Daisy
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12"/><polyline points="6 14 12 20 18 14"/></svg>
+        </a>
+        <a href="#how" class="btn btn--ghost">See how it works</a>
+      </div>
+      <div class="hero__meta">
+        <span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Private by design
+        </span>
+        <span class="dot" aria-hidden="true"></span>
+        <span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          ~80 MB · 30-second install
+        </span>
+        <span class="dot" aria-hidden="true"></span>
+        <span>Windows 10 &amp; 11</span>
+      </div>
     </div>
-  </header>
 
-  <main>
-    <section class="hero">
-      <h1>A patient voice helper<br />for your computer.</h1>
-      <p class="lede">Daisy listens, looks at your screen when you ask, and walks you through anything — one calm step at a time. She never clicks for you.</p>
-      <a class="download-btn" href="/download">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 4v12m0 0-4-4m4 4 4-4" /><path d="M4 20h16" />
-        </svg>
-        Download for Windows — Free
-      </a>
-      <p class="smartscreen">When Windows asks "Are you sure?", click <strong>More info</strong> then <strong>Run anyway</strong>. We're working on a signed installer.</p>
-    </section>
+    <div class="mark-wrap" aria-hidden="true">
+      <div class="glow"></div>
+      <div class="mark" data-state="idle">
+        <img class="mark__petal" src="assets/petal1-removebg-preview.png" alt="" />
+        <img class="mark__petal" src="assets/petal2-removebg-preview.png" alt="" />
+        <img class="mark__petal" src="assets/petal3-removebg-preview.png" alt="" />
+        <img class="mark__petal" src="assets/petal4-removebg-preview.png" alt="" />
+        <img class="mark__petal" src="assets/petal5-removebg-preview.png" alt="" />
+        <img class="mark__petal" src="assets/petal6-removebg-preview.png" alt="" />
+        <img class="mark__core"  src="assets/center-removebg-preview.png" alt="" />
+        <img class="mark__face"  src="assets/face-removebg-preview.png"   alt="" />
+      </div>
+    </div>
+  </div>
+</section>
 
-    <section class="what">
-      <h2>What Daisy does</h2>
-      <ul class="feature-list">
-        <li>
-          <span class="feat-icon" aria-hidden="true">🎙</span>
-          <div><strong>Listens to your voice.</strong> Just talk — no typing needed.</div>
-        </li>
-        <li>
-          <span class="feat-icon" aria-hidden="true">🖥</span>
-          <div><strong>Sees your screen when you ask.</strong> Click "Show Daisy my screen" and she'll know exactly what you're looking at.</div>
-        </li>
-        <li>
-          <span class="feat-icon" aria-hidden="true">👣</span>
-          <div><strong>Guides one step at a time.</strong> No jargon, no rushing.</div>
-        </li>
-        <li>
-          <span class="feat-icon" aria-hidden="true">🌎</span>
-          <div><strong>Speaks English or Spanish.</strong> Switch with one tap.</div>
-        </li>
-      </ul>
-    </section>
+<!-- ──────────────── Audience strip ──────────────── -->
+<section class="section section--cream section--tight">
+  <div class="wrap audience">
+    <div class="aud-card">
+      <h3>For grandparents</h3>
+      <p>who want to print a boarding pass without calling the kids again.</p>
+    </div>
+    <div class="aud-card">
+      <h3>For grown children</h3>
+      <p>who want their mom to stop apologising for asking the same question twice.</p>
+    </div>
+    <div class="aud-card">
+      <h3>For caregivers</h3>
+      <p>who deserve a tool that's as patient with their clients as they try to be.</p>
+    </div>
+  </div>
+</section>
 
-    <section class="privacy">
-      <h2>Your privacy</h2>
-      <p>Daisy doesn't track you. The app sends your voice and — when you ask — a screen image to our servers to figure out the next step, then forgets the conversation when you close the window.</p>
-    </section>
+<!-- ──────────────── Promises ──────────────── -->
+<section class="section" id="promises">
+  <div class="wrap">
+    <div class="section__head">
+      <span class="eyebrow">What we promise</span>
+      <h2>Built on four things<br />we won't trade away.</h2>
+      <p>
+        Daisy is a small piece of software with a strong opinion about how it
+        should behave. These aren't features. They're the floor.
+      </p>
+    </div>
 
-    <section class="help">
-      <h2>Need help?</h2>
-      <p>Email <a href="mailto:hello@daisyhelps.com">hello@daisyhelps.com</a>.</p>
-    </section>
-  </main>
+    <div class="promises">
 
-  <footer>
-    <span>© 2026 Daisy Helps</span>
-    <span><a href="https://api.daisyhelps.com/healthz">status</a></span>
-  </footer>
+      <div class="promise">
+        <div class="promise__icon" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+        </div>
+        <span class="promise__num">No. 01</span>
+        <h3>Your words are <em>yours</em>.</h3>
+        <p>
+          We don't save your conversations. We don't sell, share, or train on
+          them. Audio leaves your machine to be transcribed, then it's gone —
+          no chat history, no profile, no "memories" file growing on a server
+          somewhere. If you close Daisy, the conversation closes with it.
+        </p>
+      </div>
+
+      <div class="promise">
+        <div class="promise__icon" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        </div>
+        <span class="promise__num">No. 02</span>
+        <h3>Time is for <em>you</em>, not us.</h3>
+        <p>
+          Daisy will never rush you, never time you out mid-thought, never
+          punish a long pause. There are no streaks to keep, no badges, no
+          dopamine drip-feed. She'll wait. She has the rest of the afternoon.
+        </p>
+      </div>
+
+      <div class="promise">
+        <div class="promise__icon" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/></svg>
+        </div>
+        <span class="promise__num">No. 03</span>
+        <h3>Designed for <em>every</em> set of eyes and hands.</h3>
+        <p>
+          Atkinson Hyperlegible type, AAA-contrast text, hit targets larger
+          than a postage stamp, voices that read aloud at a human pace.
+          Captions on by default. Font size goes up to 1.6×. Every
+          control has a name a screen reader can speak.
+        </p>
+      </div>
+
+      <div class="promise">
+        <div class="promise__icon" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>
+        </div>
+        <span class="promise__num">No. 04</span>
+        <h3>No tricks. No upsells. <em>Ever.</em></h3>
+        <p>
+          Daisy is free, and stays free for the person at the keyboard.
+          No nag screens, no "premium" tier hiding behind a paywall, no
+          notifications begging you to come back. When she doesn't know
+          something, she'll say so — and tell you where to go next.
+        </p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── Manifesto ──────────────── -->
+<section class="section section--cream section--manifesto" id="manifesto">
+  <div class="wrap manifesto">
+    <blockquote>
+      Computers should <em>greet</em> you,<br />
+      not <span class="green">test</span> you.
+    </blockquote>
+    <div class="signature">A note from the team</div>
+  </div>
+</section>
+
+<!-- ──────────────── How it works ──────────────── -->
+<section class="section section--ink" id="how">
+  <div class="wrap">
+    <div class="section__head">
+      <span class="eyebrow eyebrow--on-ink">How it works</span>
+      <h2>Three small steps,<br />then a long, easy conversation.</h2>
+      <p>No accounts. No setup wizard. No quiz about your preferences. You'll be talking to Daisy in less time than it takes to make tea.</p>
+    </div>
+
+    <div class="steps">
+      <article class="step">
+        <span class="step__num">01</span>
+        <h3>Install</h3>
+        <p>One download. Run <code>DaisyHelps-Setup.exe</code> and click through the SmartScreen warning (More info → Run anyway). No account, no email, no "accept these 14 things."</p>
+      </article>
+      <article class="step">
+        <span class="step__num">02</span>
+        <h3>Press the big button</h3>
+        <p>Daisy opens to a single button that says <em>Start talking</em>. Press it, ask anything. She'll listen as long as you need.</p>
+      </article>
+      <article class="step">
+        <span class="step__num">03</span>
+        <h3>Carry on</h3>
+        <p>She'll look at your screen if you ask, walk you through clicks step by step, or just keep you company while you find the right window. When you're done, close her.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── Install ──────────────── -->
+<section class="section install" id="install">
+  <div class="wrap">
+    <div class="install__card">
+      <div class="install__grid">
+        <div>
+          <span class="eyebrow">Get Daisy</span>
+          <h2 class="install__heading">Free download.<br />Always.</h2>
+          <p>
+            Daisy is about 80&nbsp;MB and installs in under a minute. You
+            don't need an account to use her. You never will.
+          </p>
+          <div class="install__sysreq" aria-label="System requirements">
+            <span>Windows 10 &amp; 11</span>
+            <span>64-bit</span>
+            <span>~80 MB</span>
+            <span>Microphone needed</span>
+          </div>
+          <p class="install__note">
+            When Windows asks <em>"Are you sure?"</em>, click
+            <strong>More info</strong> then <strong>Run anyway</strong>.
+            We're working on a signed installer.
+          </p>
+        </div>
+
+        <div class="platforms">
+
+          <a href="/download" class="platform platform--primary">
+            <span class="platform__icon" aria-hidden="true">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4.5l8-1.2v8.5H3V4.5zM13 3l8-1.2v9.8h-8V3zM3 13h8v8.5l-8-1.2V13zm10 0h8v8.6l-8-1.2V13z"/></svg>
+            </span>
+            <span class="platform__text">
+              <span class="platform__name">Download for Windows</span>
+              <span class="platform__meta">Windows 10 &amp; 11 · 64-bit · ~80 MB</span>
+            </span>
+            <span class="platform__arrow" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </span>
+          </a>
+
+          <div class="platform platform--soon" aria-disabled="true">
+            <span class="platform__icon" aria-hidden="true">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 2.5c0 1.3-.55 2.5-1.42 3.4-.92.95-2.4 1.7-3.6 1.6-.13-1.3.5-2.5 1.4-3.4.97-1 2.5-1.65 3.62-1.6zM20 17.5c-.6 1.4-.9 2-1.7 3.3-1.1 1.8-2.6 4-4.5 4-1.7 0-2.2-1.1-4.5-1.1-2.3 0-2.9 1.1-4.5 1.1-1.9 0-3.3-2-4.4-3.8C-2 16-2.4 7.7 3 5c1.9-1 4-.5 5.4 0 1 .3 2.3.5 3.2-.3 1.4-1.2 4.3-1.5 6.4 1-5.6 3-4.7 11 2 11.8z"/></svg>
+            </span>
+            <span class="platform__text">
+              <span class="platform__name">macOS</span>
+              <span class="platform__meta">Coming after Windows v1</span>
+            </span>
+            <span class="platform__badge">soon</span>
+          </div>
+
+          <div class="platform platform--soon" aria-disabled="true">
+            <span class="platform__icon" aria-hidden="true">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5c1.4 0 2.5 1.3 2.5 3 0 1-.4 1.8-1 2.4 1.6.7 2.7 2.4 3.2 4.6.5 2.4.3 4-.1 5.1 1 .3 1.9 1 2.4 2 .5 1 .3 1.9-.6 2.1-1.4.3-2.8-.4-3.7-1.3-.4.7-1.1 1.3-2 1.4-1 .2-1.7-.1-2.7-.1s-1.7.3-2.7.1c-.9-.2-1.6-.7-2-1.4-.9.9-2.3 1.6-3.7 1.3-.9-.2-1.1-1.1-.6-2.1.5-1 1.4-1.7 2.4-2-.4-1.1-.6-2.7-.1-5.1.5-2.2 1.6-3.9 3.2-4.6-.6-.6-1-1.4-1-2.4 0-1.7 1.1-3 2.5-3z"/></svg>
+            </span>
+            <span class="platform__text">
+              <span class="platform__name">Linux</span>
+              <span class="platform__meta">AppImage · planned</span>
+            </span>
+            <span class="platform__badge">soon</span>
+          </div>
+
+          <a href="https://api.daisyhelps.com/test" class="platform">
+            <span class="platform__icon platform__icon--accent" aria-hidden="true">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor"/></svg>
+            </span>
+            <span class="platform__text">
+              <span class="platform__name">Try in your browser</span>
+              <span class="platform__meta">Live test page · no install</span>
+            </span>
+            <span class="platform__arrow" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </span>
+          </a>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── FAQ ──────────────── -->
+<section class="section" id="faq">
+  <div class="wrap">
+    <div class="section__head">
+      <span class="eyebrow">Honest answers</span>
+      <h2>Questions we'd ask too.</h2>
+    </div>
+
+    <div class="faq">
+      <details class="faq__item" open>
+        <summary>Does Daisy listen all the time?</summary>
+        <p>No. Daisy only listens when she's open and you've spoken. There is no wake word. There is no background listening. Close the window and the microphone is released.</p>
+      </details>
+      <details class="faq__item">
+        <summary>Where does my voice go?</summary>
+        <p>Audio is sent to a transcription service to be turned into text, then deleted. The text of your question is sent to a language model to compose an answer, then deleted. We don't retain any of it, and we don't link it to you — there's no account.</p>
+      </details>
+      <details class="faq__item">
+        <summary>Does Daisy take screenshots?</summary>
+        <p>Only when she asks. If understanding what's on your screen would help her answer, she'll ask first — with the reason in plain English — and you can always say "not right now." She doesn't remember the answer; next time she'll ask again.</p>
+      </details>
+      <details class="faq__item">
+        <summary>What if I can't hear well, or speak clearly?</summary>
+        <p>Every spoken word is captioned on screen in large type. If you'd rather type, there's a text mode that doesn't leave the conversation. Font size is generous and contrast is AAA against the background.</p>
+      </details>
+      <details class="faq__item">
+        <summary>Is it really free? What's the catch?</summary>
+        <p>There isn't one. Daisy is built by a small team. We may eventually take support partnerships with public libraries and senior centers — we will never sell what the people at home are saying.</p>
+      </details>
+      <details class="faq__item">
+        <summary>Why does Windows show a warning when I install?</summary>
+        <p>Daisy v0.1 is not yet signed with an EV code-signing certificate, so Windows SmartScreen shows an "Unknown publisher" warning. Click <strong>More info</strong> then <strong>Run anyway</strong>. We're saving for the cert — it removes the warning entirely.</p>
+      </details>
+      <details class="faq__item">
+        <summary>Can I install it for someone else?</summary>
+        <p>Yes — and we expect most people will. The download is small, the installer is a normal Windows installer, and Daisy launches to a single button.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── Final CTA ──────────────── -->
+<section class="section section--cream section--cta">
+  <div class="wrap cta-wrap">
+    <h2>Bring a little patience<br/>to the family computer.</h2>
+    <p>
+      An ~80 MB download. A button that says <em>Start talking</em>. That's it.
+    </p>
+    <a href="/download" class="btn btn--primary btn--xl">
+      Install Daisy — it's free
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12"/><polyline points="6 14 12 20 18 14"/></svg>
+    </a>
+  </div>
+</section>
+
+<!-- ──────────────── Footer ──────────────── -->
+<footer>
+  <div class="wrap">
+    <div class="row">
+      <div>
+        <a href="#top" class="brand" aria-label="Daisy Helps — home">
+          <img class="brand__mark" src="assets/daisy_logo__1_-removebg-preview.png" alt="" />
+          <span class="brand__name">daisy<em>.</em></span>
+        </a>
+        <p class="blurb">A patient voice-first companion for the digital world. Made with care, in a small studio, for the people we love.</p>
+      </div>
+      <div>
+        <h4>The app</h4>
+        <ul>
+          <li><a href="#install">Install</a></li>
+          <li><a href="#how">How it works</a></li>
+          <li><a href="https://api.daisyhelps.com/test">Browser test page</a></li>
+          <li><a href="https://github.com/HackedByData/daisyhelps/releases">Releases</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>The team</h4>
+        <ul>
+          <li><a href="#promises">Our promises</a></li>
+          <li><a href="mailto:hello@daisyhelps.com">Contact</a></li>
+          <li><a href="https://github.com/HackedByData/daisyhelps">Source on GitHub</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Privacy</h4>
+        <ul>
+          <li>What we collect: nothing.</li>
+          <li>What we share: nothing.</li>
+          <li><a href="https://api.daisyhelps.com/healthz">Service status</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="legal">
+      <span>© 2026 Daisy Helps — a small studio with a soft spot for impatience-free computing.</span>
+      <span>v0.1.0 · made with patience</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Hairline border on nav once the user scrolls past the hero
+  (function navOnScroll() {
+    var nav = document.getElementById('nav');
+    function onScroll() { nav.classList.toggle('scrolled', window.scrollY > 12); }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  })();
+</script>
 
 </body>
 </html>
