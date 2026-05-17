@@ -1,7 +1,9 @@
-import { app, BrowserWindow, desktopCapturer, ipcMain, screen, session } from 'electron';
+import { app, BrowserWindow, desktopCapturer, ipcMain, Menu, screen, session, Tray } from 'electron';
 import path from 'node:path';
 
 let mainWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
+let quittingForReal = false;
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -19,7 +21,29 @@ function createWindow(): void {
     },
   });
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  mainWindow.on('close', (e) => {
+    if (!quittingForReal) {
+      e.preventDefault();
+      mainWindow?.hide();
+    }
+  });
   mainWindow.on('closed', () => { mainWindow = null; });
+}
+
+function createTray(): void {
+  tray = new Tray(path.join(__dirname, '..', 'src', 'assets', 'tray-icon.png'));
+  tray.setToolTip('Daisy Helps');
+  const menu = Menu.buildFromTemplate([
+    { label: 'Show Daisy', click: () => { mainWindow?.show(); mainWindow?.focus(); } },
+    { label: 'Hide Daisy', click: () => mainWindow?.hide() },
+    { type: 'separator' },
+    { label: 'Quit', click: () => { quittingForReal = true; app.quit(); } },
+  ]);
+  tray.setContextMenu(menu);
+  tray.on('click', () => {
+    if (mainWindow?.isVisible()) mainWindow.hide();
+    else { mainWindow?.show(); mainWindow?.focus(); }
+  });
 }
 
 app.whenReady().then(() => {
@@ -52,15 +76,14 @@ app.whenReady().then(() => {
     }
   });
 
+  createTray();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
+app.on('before-quit', () => { quittingForReal = true; });
 
 // --- Multi-monitor picker ---
 
