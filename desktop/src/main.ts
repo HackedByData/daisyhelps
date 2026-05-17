@@ -265,6 +265,20 @@ app.whenReady().then(() => {
     else             indicatorWindow.setIgnoreMouseEvents(false);
   });
 
+  // Subtitle IPC (main renderer → main → subtitle renderer).
+  ipcMain.on('daisy:subtitle-show', (_e, text: string) => {
+    if (!subtitleWindow) return;
+    if (!subtitleWindow.isVisible()) subtitleWindow.showInactive();
+    subtitleWindow.webContents.send('daisy:subtitle-show', text);
+  });
+  ipcMain.on('daisy:subtitle-clear', () => {
+    if (!subtitleWindow) return;
+    subtitleWindow.webContents.send('daisy:subtitle-clear');
+    // Hide after the fade transition (~260ms) — keeps the pill from
+    // visually "popping" out when text-clearing completes mid-fade.
+    setTimeout(() => subtitleWindow?.hide(), 280);
+  });
+
   // Serve renderer files via app:// so Babel's XHR (used for src="*.jsx") works
   // under the sandboxed renderer — file:// blocks XHR in sandboxed contexts.
   protocol.handle('app', (request) => {

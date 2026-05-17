@@ -37,8 +37,5 @@ function fadeOut(): void {
   }, 260);
 }
 
-// Cast to `any` so the unknown property names don't block the build.
-// In Task 3 these casts will be removed once `DaisyAPI` declares
-// `onShowSubtitle` and `onClearSubtitle` properly.
-(window.daisyAPI as any)?.onShowSubtitle?.((newText: string) => render(newText));
-(window.daisyAPI as any)?.onClearSubtitle?.(() => fadeOut());
+window.daisyAPI?.onShowSubtitle?.((newText: string) => render(newText));
+window.daisyAPI?.onClearSubtitle?.(() => fadeOut());

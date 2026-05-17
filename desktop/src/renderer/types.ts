@@ -59,6 +59,10 @@ export interface DaisyAPI {
   clearIndicator(): void;
   onShowIndicator(cb: (args: { x: number; y: number; label?: string }) => void): void;
   indicatorSetPassthrough(passthrough: boolean): void;
+  subtitleShow(text: string): void;
+  subtitleClear(): void;
+  onShowSubtitle(cb: (text: string) => void): void;
+  onClearSubtitle(cb: () => void): void;
 }
 
 declare global {

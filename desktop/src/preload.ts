@@ -41,4 +41,14 @@ contextBridge.exposeInMainWorld('daisyAPI', {
   },
   indicatorSetPassthrough: (passthrough: boolean) =>
     ipcRenderer.send('daisy:indicator-set-passthrough', passthrough),
+
+  // Subtitle (main renderer → main → subtitle renderer)
+  subtitleShow:  (text: string) => ipcRenderer.send('daisy:subtitle-show', text),
+  subtitleClear: () => ipcRenderer.send('daisy:subtitle-clear'),
+  onShowSubtitle: (cb: (text: string) => void) => {
+    ipcRenderer.on('daisy:subtitle-show', (_e, text) => cb(text));
+  },
+  onClearSubtitle: (cb: () => void) => {
+    ipcRenderer.on('daisy:subtitle-clear', () => cb());
+  },
 });
