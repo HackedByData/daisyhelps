@@ -237,7 +237,7 @@ export interface ClickIndicatorMsg {
   type: 'click_indicator';
   x: number; y: number;
   ref_width: number; ref_height: number;
-  label: string; confidence: number | null;
+  label: string | null; confidence: number | null;
 }
 export interface ClearIndicatorMsg { type: 'clear_indicator'; }
 export type ServerErrorCode =
