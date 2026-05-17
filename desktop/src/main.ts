@@ -108,6 +108,32 @@ function createSubtitle(): void {
   subtitleWindow.on('closed', () => { subtitleWindow = null; });
 }
 
+function repositionSubtitle(): void {
+  if (!overlayWindow || !subtitleWindow) return;
+  const o = overlayWindow.getBounds();
+  const sw = 320, sh = 44;  // must match SUB_W / SUB_H in createSubtitle()
+  const GAP = 8;
+  // Pick the display the overlay currently sits on (handles multi-monitor
+  // when the user drags the daisy from one screen to another).
+  const display = screen.getDisplayNearestPoint({ x: o.x + o.width / 2, y: o.y + o.height / 2 });
+  const { x: dx, y: dy, width: dw, height: dh } = display.workArea;
+
+  // Centered horizontally on the overlay, GAP below.
+  let x = Math.round(o.x + o.width / 2 - sw / 2);
+  let y = Math.round(o.y + o.height + GAP);
+
+  // Clamp within the overlay's current display.
+  if (x < dx) x = dx;
+  if (x + sw > dx + dw) x = dx + dw - sw;
+  // If no room below, flip above.
+  if (y + sh > dy + dh) y = Math.round(o.y - sh - GAP);
+  // And if there's no room above either (overlay covers the whole display
+  // height somehow), pin to the top of the work area.
+  if (y < dy) y = dy;
+
+  subtitleWindow.setBounds({ x, y, width: sw, height: sh });
+}
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 900,
@@ -292,6 +318,12 @@ app.whenReady().then(() => {
   createOverlay();
   createIndicator();
   createSubtitle();
+  repositionSubtitle();
+  // Keep the subtitle stuck to the overlay whenever the overlay moves by any
+  // means (drag, programmatic, future setPosition calls). The if-guard makes
+  // a future refactor that conditionally skips createOverlay() a TypeScript
+  // error rather than a silent no-op listener registration.
+  if (overlayWindow) overlayWindow.on('move', () => repositionSubtitle());
   setupAutoUpdate();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
