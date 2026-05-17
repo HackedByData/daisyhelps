@@ -419,6 +419,15 @@ app.whenReady().then(() => {
     setShareScreenRemembered(!!enabled);
   });
 
+  // HandoffModal OK button asks main to hide the big window. Distinct from
+  // the close-to-tray path because it bypasses the close intercept.
+  ipcMain.on('daisy:hide-main-window', () => {
+    mainWindow?.hide();
+    // Fire the overlay one-time attention pulse so the user notices where
+    // Daisy went. The overlay renderer dedupes — see overlay.ts.
+    overlayWindow?.webContents.send('daisy:overlay-attention-pulse');
+  });
+
   // Subtitle passthrough toggle. Renderer flips it off while the cursor is
   // over the close-X so the button is clickable; clicks anywhere else on
   // the pill pass through to whatever's underneath.
