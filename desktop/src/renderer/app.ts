@@ -205,8 +205,11 @@ langToggle.addEventListener('click', (e) => {
   send({ type: 'language_change', language });
 });
 
-window.daisyAPI?.onUpdateReady?.((_info) => {
+window.daisyAPI?.onUpdateReady?.((info) => {
   updateBadge.classList.remove('hidden');
+  updateBadge.textContent = `Update v${info.version} ready — click to restart`;
+  updateBadge.style.cursor = 'pointer';
+  updateBadge.onclick = () => window.daisyAPI.quitAndInstall();
 });
 
 connect();

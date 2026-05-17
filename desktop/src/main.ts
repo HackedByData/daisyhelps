@@ -1,5 +1,6 @@
 import { app, BrowserWindow, desktopCapturer, ipcMain, Menu, screen, session, Tray } from 'electron';
 import path from 'node:path';
+import { autoUpdater } from 'electron-updater';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -46,6 +47,23 @@ function createTray(): void {
   });
 }
 
+function setupAutoUpdate(): void {
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('update-downloaded', (info) => {
+    mainWindow?.webContents.send('daisy:update-ready', { version: info.version });
+  });
+  autoUpdater.on('error', (err) => {
+    // Network failures are expected when offline; don't surface to users
+    console.warn('[updater]', err.message);
+  });
+
+  // Initial check 30s after launch; then every 6 hours.
+  setTimeout(() => { void autoUpdater.checkForUpdates(); }, 30_000);
+  setInterval(() => { void autoUpdater.checkForUpdates(); }, 6 * 60 * 60 * 1000);
+}
+
 app.whenReady().then(() => {
   // Grant mic permission to the renderer once at startup
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
@@ -76,8 +94,14 @@ app.whenReady().then(() => {
     }
   });
 
+  ipcMain.on('daisy:quit-and-install', () => {
+    quittingForReal = true;
+    autoUpdater.quitAndInstall();
+  });
+
   createTray();
   createWindow();
+  setupAutoUpdate();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
