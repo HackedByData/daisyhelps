@@ -31,7 +31,12 @@ html, body {
   pointer-events: none;
   filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.25));
 }
-.pointer.is-visible { display: flex; }
+/* When visible, the daisy itself accepts clicks so the renderer's click-to-
+   dismiss handler can fire. Body + rings stay pointer-events: none — only the
+   daisy disc is a hit target. Main toggles window-level setIgnoreMouseEvents
+   when the cursor enters HIT_RADIUS (see indicator.ts) so the click actually
+   reaches the DOM in the first place. */
+.pointer.is-visible { display: flex; pointer-events: auto; }
 
 .pointer__daisy {
   position: absolute;
