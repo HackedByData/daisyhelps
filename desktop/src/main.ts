@@ -10,29 +10,66 @@ protocol.registerSchemesAsPrivileged([
 
 let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
+let indicatorWindow: BrowserWindow | null = null;
+let indicatorClearTimer: NodeJS.Timeout | null = null;
 let tray: Tray | null = null;
 let quittingForReal = false;
 
 function createOverlay(): void {
   const primary = screen.getPrimaryDisplay();
   const { width } = primary.workAreaSize;
-  const SIZE   = 220;
+  const SIZE   = 72;   // was 220 — reduced by 67% so the corner icon doesn't loom
   const MARGIN =  16;
 
   overlayWindow = new BrowserWindow({
     width: SIZE, height: SIZE,
     x: width - SIZE - MARGIN, y: MARGIN,
+    useContentSize: true,
     frame: false, transparent: true,
-    alwaysOnTop: true, skipTaskbar: true, focusable: false,
+    alwaysOnTop: true, skipTaskbar: true,
+    // Prevent Aero Snap / accidental resizing during drag — the perceived
+    // "growth" was the window being briefly resized by Windows snap,
+    // exposing more of the 280%-scaled petal composition through overflow.
+    resizable: false,
+    minimizable: false, maximizable: false, fullscreenable: false,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true, nodeIntegration: false, sandbox: true,
     },
   });
-  overlayWindow.setIgnoreMouseEvents(true);
+  // Overlay is clickable now — see daisy:overlay-click IPC.
   overlayWindow.loadFile(path.join(__dirname, 'renderer', 'overlay.html'));
   overlayWindow.on('closed', () => { overlayWindow = null; });
+}
+
+function createIndicator(): void {
+  // Full-screen, click-through, transparent always-on-top window that hosts
+  // the daisy pointer for click_indicator messages. Modelled on createOverlay()
+  // but sized to the whole primary display and locked to ignore mouse events
+  // so the user's clicks pass through to the app underneath.
+  const primary = screen.getPrimaryDisplay();
+  const { width, height } = primary.size;
+
+  indicatorWindow = new BrowserWindow({
+    width, height,
+    x: primary.bounds.x, y: primary.bounds.y,
+    useContentSize: true,
+    frame: false, transparent: true,
+    alwaysOnTop: true, skipTaskbar: true,
+    focusable: false, resizable: false,
+    minimizable: false, maximizable: false, fullscreenable: false,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true, nodeIntegration: false, sandbox: true,
+    },
+  });
+  // alwaysOnTop level: 'screen-saver' keeps it above fullscreen apps on Windows
+  indicatorWindow.setAlwaysOnTop(true, 'screen-saver');
+  indicatorWindow.setIgnoreMouseEvents(true);
+  indicatorWindow.loadFile(path.join(__dirname, 'renderer', 'indicator.html'));
+  indicatorWindow.on('closed', () => { indicatorWindow = null; });
 }
 
 function createWindow(): void {
@@ -134,6 +171,46 @@ app.whenReady().then(() => {
   ipcMain.on('daisy:overlay-state', (_e, state: string) => {
     overlayWindow?.webContents.send('daisy:overlay-state', state);
   });
+  // Overlay click → forward to main renderer so it can capture screen + start mic
+  ipcMain.on('daisy:overlay-click', () => {
+    mainWindow?.webContents.send('daisy:overlay-click');
+  });
+  // Overlay drag — overlay reports screen-relative pointer deltas; we move the
+  // window from the position recorded at drag-start.
+  let overlayDragOrigin: { x: number; y: number } | null = null;
+  ipcMain.on('daisy:overlay-drag-start', () => {
+    if (!overlayWindow) return;
+    const [x, y] = overlayWindow.getPosition();
+    overlayDragOrigin = { x, y };
+  });
+  ipcMain.on('daisy:overlay-drag-move', (_e, dx: number, dy: number) => {
+    if (!overlayWindow || !overlayDragOrigin) return;
+    overlayWindow.setPosition(
+      Math.round(overlayDragOrigin.x + dx),
+      Math.round(overlayDragOrigin.y + dy),
+    );
+  });
+  ipcMain.on('daisy:overlay-drag-end', () => { overlayDragOrigin = null; });
+
+  // Click indicator IPC. Translates from screenshot pixel space (refW × refH)
+  // to physical primary-display pixels, then asks the indicator renderer to
+  // place the daisy pointer there. Auto-clears after 8s so a missed
+  // clear_indicator from the backend doesn't leave a stale pointer on screen.
+  ipcMain.on('daisy:show-indicator', (_e, args: { x: number; y: number; refW: number; refH: number; label?: string }) => {
+    if (!indicatorWindow) return;
+    const primary = screen.getPrimaryDisplay();
+    const { width: sw, height: sh } = primary.size;
+    const physX = Math.round(args.x * (sw / args.refW));
+    const physY = Math.round(args.y * (sh / args.refH));
+    indicatorWindow.webContents.send('daisy:show-indicator', { x: physX, y: physY, label: args.label });
+    indicatorWindow.showInactive();
+    if (indicatorClearTimer) clearTimeout(indicatorClearTimer);
+    indicatorClearTimer = setTimeout(() => indicatorWindow?.hide(), 8000);
+  });
+  ipcMain.on('daisy:clear-indicator', () => {
+    if (indicatorClearTimer) { clearTimeout(indicatorClearTimer); indicatorClearTimer = null; }
+    indicatorWindow?.hide();
+  });
 
   // Serve renderer files via app:// so Babel's XHR (used for src="*.jsx") works
   // under the sandboxed renderer — file:// blocks XHR in sandboxed contexts.
@@ -146,6 +223,7 @@ app.whenReady().then(() => {
   createTray();
   createWindow();
   createOverlay();
+  createIndicator();
   setupAutoUpdate();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

@@ -490,7 +490,8 @@ async function startMic(): Promise<void> {
       audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true },
     });
     micSource = micCtx.createMediaStreamSource(micStream);
-    const bufferSize = 1600;
+    // Power-of-two requirement per Web Audio API: 2048 ≈ 128ms at 16kHz.
+    const bufferSize = 2048;
     micNode = micCtx.createScriptProcessor(bufferSize, 1, 1);
     micNode.onaudioprocess = (e) => {
       const float32 = e.inputBuffer.getChannelData(0);

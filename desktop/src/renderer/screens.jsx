@@ -163,13 +163,17 @@ function WelcomeScreen({ lang, onStart }) {
 // ─────────────────────────────────────────────────────────────
 function ConversationScreen({
   lang, state,
+  markState,                // visual-only; can be 'returning' for petal-float-home transition
   userTranscript,
   daisyText,
   daisyStreaming,
   onTalk, onStopTalk, onStopDaisy, onTextFallback,
   backendStubbed,
   micDenied,
+  micMessage,
+  clickHint,                // label of UI element Daisy is asking the user to click
 }) {
+  const visualState = markState || state;
   const t = COPY[lang];
   const heroLabel = {
     idle: t.statusIdle, listening: t.statusListening,
@@ -185,7 +189,7 @@ function ConversationScreen({
       {/* HERO (Daisy presence + state) */}
       <section className="hero" aria-live="polite" aria-atomic="false">
         <div className="hero__label">{heroLabel}</div>
-        <DaisyMark state={state} pos={{ scale: 2.8, offsetX: -68, offsetY: -80, originX: 13, originY: 25.5, center: { idle: { x: -67, y: -80 }, listening: { x: -62, y: -77 }, thinking: { x: -67, y: -80 }, speaking: { x: -67, y: -80 } } }} />
+        <DaisyMark state={visualState} pos={{ scale: 2.8, offsetX: -68, offsetY: -80, originX: 13, originY: 25.5, center: { idle: { x: -67, y: -80 }, listening: { x: -62, y: -77 }, thinking: { x: -67, y: -80 }, speaking: { x: -67, y: -80 }, returning: { x: -67, y: -80 } } }} />
         <div className="hero__status">{heroStatus}</div>
         {state === 'listening' && (
           <div style={{ color: 'var(--daisy-green-deep)' }}>
@@ -207,7 +211,17 @@ function ConversationScreen({
         {micDenied && (
           <div className="banner banner--alert" role="status">
             <span className="banner__icon" aria-hidden="true">!</span>
-            <div><strong>{t.errMicTitle}</strong> {t.errMicBody}</div>
+            <div><strong>{t.errMicTitle}</strong> {micMessage || t.errMicBody}</div>
+          </div>
+        )}
+        {clickHint && (
+          <div className="banner" role="status" style={{ background: 'var(--daisy-yellow)', color: 'var(--ink-0)' }}>
+            <span className="banner__icon" aria-hidden="true">👉</span>
+            <div>
+              {lang === 'en'
+                ? <>Click on <strong>{clickHint}</strong>, then tell me what happened.</>
+                : <>Haz clic en <strong>{clickHint}</strong>, luego dime qué pasó.</>}
+            </div>
           </div>
         )}
 

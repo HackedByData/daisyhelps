@@ -1,18 +1,37 @@
-/* Transparent click-through overlay — shows the Daisy flower mark in a corner */
+/* Clickable transparent overlay — shows the Daisy flower mark in a corner.
+   Dimensions are LOCKED to 72×72 (matching createOverlay's SIZE constant)
+   so that even if Windows briefly resizes the window during a drag, the
+   visible daisy can't grow beyond its intended bounds. */
 *, *::before, *::after { box-sizing: border-box; }
 html, body {
   margin: 0; padding: 0;
-  width: 220px; height: 220px;
+  width: 72px; height: 72px;
+  max-width: 72px; max-height: 72px;
   background: transparent;
   overflow: hidden;
 }
 
 /* ── Mark container ── */
 .mark {
-  width: 220px; height: 220px;
+  width: 72px; height: 72px;
+  max-width: 72px; max-height: 72px;
   position: relative;
   display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  -webkit-user-select: none; user-select: none;
+  transition: filter .15s ease, transform .15s ease;
 }
+.mark:hover  { filter: brightness(1.08); }
+.mark:active { transform: scale(0.95); }
+/* While dragging, freeze all animations so the daisy doesn't appear to grow
+   under the cursor. Setting transform to none also overrides :active/breathe. */
+.mark.dragging,
+.mark.dragging .mark__petal,
+.mark.dragging .mark__core,
+.mark.dragging .mark__flower > img:last-child {
+  animation: none !important;
+}
+.mark.dragging { cursor: grabbing; transform: none !important; }
 
 /* Petal images — same canvas coordinate system as main app, conversation-screen scale */
 .mark__petal, .mark__core, .mark__flower > img:last-child {
@@ -49,6 +68,18 @@ html, body {
 /* idle */
 .mark[data-state="idle"] { animation: breathe 4.4s ease-in-out infinite; }
 @keyframes breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+
+/* returning — intermediate state between thinking and speaking. Kills the
+   orbit animation and gives the petals an explicit home transform so the
+   transition: transform 1.2s defined on .mark__petal can smoothly float
+   them back before the speaking animation begins. */
+.mark[data-state="returning"] .mark__petal {
+  animation: none !important;
+  transform: translate(0px, 0px) rotate(0deg);
+}
+.mark[data-state="returning"] .mark__core {
+  animation: none !important;
+}
 
 /* listening */
 .mark[data-state="listening"] .mark__petal { transform: scale(1.08); }

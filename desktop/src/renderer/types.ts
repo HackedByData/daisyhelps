@@ -49,6 +49,14 @@ export interface DaisyAPI {
   overlayHide(): void;
   overlayState(state: string): void;
   onOverlayState(cb: (state: string) => void): void;
+  overlayClick(): void;
+  onOverlayClick(cb: () => void): void;
+  overlayDragStart(): void;
+  overlayDragMove(dx: number, dy: number): void;
+  overlayDragEnd(): void;
+  showIndicator(args: { x: number; y: number; refW: number; refH: number; label?: string }): void;
+  clearIndicator(): void;
+  onShowIndicator(cb: (args: { x: number; y: number; label?: string }) => void): void;
 }
 
 declare global {

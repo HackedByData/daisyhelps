@@ -174,6 +174,17 @@ body { overflow-x: hidden; }
 .mark[data-state="idle"] { animation: breathe 4.4s ease-in-out infinite; }
 @keyframes breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.04); } }
 
+/* returning — intermediate state between thinking and speaking. Stops the
+   orbit, sets explicit home transform so the petals' existing
+   `transition: transform 1.2s` animates them smoothly back to rest. */
+.mark[data-state="returning"] .mark__petal {
+  animation: none !important;
+  transform: translate(0px, 0px) rotate(0deg);
+}
+.mark[data-state="returning"] .mark__core {
+  animation: none !important;
+}
+
 /* listening */
 .mark[data-state="listening"] .mark__petal { transform: scale(var(--p, 1.08)); }
 .ring { position: absolute; inset: 0; border-radius: 50%; border: 3px solid var(--daisy-green); opacity: 0; pointer-events: none; }
