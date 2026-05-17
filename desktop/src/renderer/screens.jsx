@@ -28,6 +28,9 @@ const COPY = {
     settingsTitle: 'Settings',
     textSize: 'Text size',
     audioTest: 'Test the sound',
+    subtitles: 'Subtitles',
+    subtitlesOn: 'On',
+    subtitlesOff: 'Off',
     end: 'End the visit',
     close: 'Close',
     consentTitle: 'May I see your screen?',
@@ -74,6 +77,9 @@ const COPY = {
     settingsTitle: 'Ajustes',
     textSize: 'Tama\u00f1o del texto',
     audioTest: 'Probar el sonido',
+    subtitles: 'Subt\u00edtulos',
+    subtitlesOn: 'Activado',
+    subtitlesOff: 'Desactivado',
     end: 'Terminar la visita',
     close: 'Cerrar',
     consentTitle: '\u00bfPuedo ver tu pantalla?',
@@ -325,7 +331,10 @@ function ScreenshotConsent({ lang, reason, onYes, onNo }) {
 // ─────────────────────────────────────────────────────────────
 // Settings sheet
 // ─────────────────────────────────────────────────────────────
-function SettingsSheet({ lang, fontScale, onFontScale, onClose, onEnd, onAudioTest }) {
+function SettingsSheet({
+  lang, fontScale, onFontScale, onClose, onEnd, onAudioTest,
+  subtitlesEnabled, onSubtitlesEnabled,
+}) {
   const t = COPY[lang];
   return (
     <aside className="sheet" role="dialog" aria-modal="false" aria-labelledby="settings-title">
@@ -336,6 +345,17 @@ function SettingsSheet({ lang, fontScale, onFontScale, onClose, onEnd, onAudioTe
           <button className="stepper" aria-label="Smaller" onClick={() => onFontScale(Math.max(0.85, +(fontScale - 0.1).toFixed(2)))}>A&minus;</button>
           <button className="stepper" aria-label="Larger" onClick={() => onFontScale(Math.min(1.6, +(fontScale + 0.1).toFixed(2)))}>A+</button>
         </div>
+      </div>
+      <div className="sheet__row">
+        <div className="sheet__label">{t.subtitles}</div>
+        <button
+          className={`btn ${subtitlesEnabled ? 'btn--primary' : 'btn--quiet'}`}
+          onClick={() => onSubtitlesEnabled(!subtitlesEnabled)}
+          aria-pressed={subtitlesEnabled}
+          style={{ minHeight: 56, minWidth: 120 }}
+        >
+          {subtitlesEnabled ? t.subtitlesOn : t.subtitlesOff}
+        </button>
       </div>
       <div className="sheet__row">
         <div className="sheet__label">{t.audioTest}</div>

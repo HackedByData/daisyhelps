@@ -795,6 +795,8 @@ function App() {
           onClose={() => setSettingsOpen(false)}
           onEnd={endSession}
           onAudioTest={() => {/* play a friendly beep in real build */}}
+          subtitlesEnabled={daisy.subtitlesEnabled}
+          onSubtitlesEnabled={(v) => window.daisyAPI?.subtitleEnabledSet?.(v)}
         />
       )}
 
