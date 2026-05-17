@@ -25,8 +25,8 @@ npm test      # vitest run
 ```powershell
 cd desktop
 npm run release
-# → desktop/release/DaisyHelps-Setup-x.y.z.exe (~80MB)
-# → desktop/release/latest.yml  (auto-update feed)
+# → desktop/release/DaisyHelps-Setup.exe (~80MB)
+# → desktop/release/latest.yml  (auto-update feed; references the version)
 ```
 
 The first install on a fresh machine triggers Windows SmartScreen "Unknown publisher" — click "More info" → "Run anyway". This is expected until we ship a signed installer (deferred — see `CLAUDE.md`).
@@ -36,9 +36,8 @@ The first install on a fresh machine triggers Windows SmartScreen "Unknown publi
 1. Bump the version in `desktop/package.json` (e.g., `"version": "0.1.1"`).
 2. Commit: `git add desktop/package.json && git commit -m "desktop: bump to 0.1.1"`.
 3. Tag: `git tag v0.1.1 && git push origin v0.1.1`.
-4. CI (`.github/workflows/release.yml`) builds the installer on `windows-latest`, creates a GitHub Release, and uploads `DaisyHelps-Setup-0.1.1.exe` and `latest.yml`.
-5. In the GitHub release UI, drag a copy of the `.exe` renamed to `DaisyHelps-Setup.exe` (no version) into the release assets — this is the stable URL that `daisyhelps.com/download` redirects to. *(Until we automate this in the CI workflow.)*
-6. Within 6 hours, running v0.1.0 installs receive the update via electron-updater and show the "Update ready" badge.
+4. CI (`.github/workflows/release.yml`) builds the installer on `windows-latest`, creates a GitHub Release, and uploads `DaisyHelps-Setup.exe` and `latest.yml`. The filename is stable across releases (version lives in `latest.yml` metadata), so `https://github.com/HackedByData/daisyhelps/releases/latest/download/DaisyHelps-Setup.exe` always resolves.
+5. Within 6 hours, running v0.1.0 installs receive the update via electron-updater and show the "Update ready" badge.
 
 ## Landing page — local preview
 

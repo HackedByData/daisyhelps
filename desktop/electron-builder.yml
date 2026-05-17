@@ -1,7 +1,7 @@
 appId: com.daisyhelps.app
 productName: DaisyHelps
 copyright: Copyright © 2026 Daisy Helps
-artifactName: DaisyHelps-Setup-${version}.${ext}
+artifactName: DaisyHelps-Setup.${ext}
 
 directories:
   output: release

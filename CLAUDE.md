@@ -45,7 +45,7 @@ npm start
 
 # Build Windows installer locally
 npm run release
-# → desktop/release/DaisyHelps-Setup-x.y.z.exe
+# → desktop/release/DaisyHelps-Setup.exe
 
 # Cut a public release (CI builds and publishes to GitHub Releases)
 git tag v0.1.x

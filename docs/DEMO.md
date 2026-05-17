@@ -4,7 +4,7 @@ The hardcoded demo task. End-to-end runtime: ~3–5 minutes.
 
 ## Setup (before the demo)
 
-1. Download Daisy Helps from `https://daisyhelps.com/download`. The installer is `DaisyHelps-Setup-x.y.z.exe`. Click through any SmartScreen warning ("More info" → "Run anyway").
+1. Download Daisy Helps from `https://daisyhelps.com/download`. The installer is `DaisyHelps-Setup.exe`. Click through any SmartScreen warning ("More info" → "Run anyway").
 2. Launch from Start Menu → "Daisy Helps".
 3. Confirm the window opens and the status pill reads "Ready" within ~2s (Render cold-start warming).
 4. Optional warm-up: in another tab, visit `https://api.daisyhelps.com/healthz` — should return `{"status":"ok"}` instantly.

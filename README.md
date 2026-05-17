@@ -43,7 +43,7 @@ Open `http://localhost:8000/test` for the backend debug harness (used for backen
 
 ```bash
 cd desktop
-npm run release   # produces desktop/release/DaisyHelps-Setup-x.y.z.exe
+npm run release   # produces desktop/release/DaisyHelps-Setup.exe
 ```
 
 For a public release that auto-updates installed users, push a `v*` git tag — see `docs/RUNBOOK.md`.
