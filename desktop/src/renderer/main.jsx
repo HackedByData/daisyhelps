@@ -119,9 +119,9 @@ function useDaisyBackend() {
   // async on Windows and doesn't reliably silence the speakers in one tick —
   // explicit per-source stop() does.
   const activeSourcesRef = useRef(new Set());
-  // Silence-cutoff: stop mic after 5s with no speech above threshold.
+  // Silence-cutoff: stop mic after 2.5s with no speech above threshold.
   const SILENCE_THRESHOLD = 0.012;  // RMS of float32 mono audio
-  const SILENCE_TIMEOUT_MS = 5000;
+  const SILENCE_TIMEOUT_MS = 2500;
   const silenceTimerRef = useRef(null);
   const lastSpeechAtRef = useRef(0);
   const subtitleLingerRef = useRef(null);
@@ -470,9 +470,15 @@ function useDaisyBackend() {
       node.connect(ctx.destination);
       micNodeRef.current = node;
       // Watchdog: every 500ms check whether we've been silent for SILENCE_TIMEOUT_MS.
+      // If the backend hasn't moved past 'listening' by the time we cut off,
+      // silero VAD didn't trigger on what we captured (silent / too quiet) —
+      // drop the UI back to idle so the user isn't stuck on the listening
+      // animation. Guarded on liveStateRef so a slow backend transition to
+      // 'thinking' isn't clobbered.
       silenceTimerRef.current = setInterval(() => {
         if (micNodeRef.current && Date.now() - lastSpeechAtRef.current > SILENCE_TIMEOUT_MS) {
           stopMicCapture();
+          if (liveStateRef.current === 'listening') setState('idle');
         }
       }, 500);
       setMicDenied(false);
@@ -689,12 +695,13 @@ function App() {
     setMicPromptOpen(false);
     await daisy.primeMicPermission();
     setTweak({ screen: 'conversation' });
-    window.daisyAPI?.overlayShow?.();
+    // Overlay visibility is driven by main-window hide/show in main.ts —
+    // the corner daisy only appears once the big window is minimized
+    // (handoff OK, close-to-tray, tray "Hide Daisy", tray-icon toggle).
   };
   const declineMicAndEnter = () => {
     setMicPromptOpen(false);
     setTweak({ screen: 'conversation' });
-    window.daisyAPI?.overlayShow?.();
   };
   const onTalk      = () => { void daisy.startTalking(); };
   const onStopTalk  = () => daisy.stopTalking();

@@ -248,6 +248,13 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // The HandoffModal OK button hides this window so the user can see
+      // their actual app while Daisy guides them. Chromium throttles hidden
+      // BrowserWindows by default: setInterval drops to ~1/min and the audio
+      // ScriptProcessorNode stalls. That breaks the silence-cutoff timer (mic
+      // never stops) and starves the backend's VAD of audio chunks (so no
+      // transcript ever comes back). Keep the renderer full-speed when hidden.
+      backgroundThrottling: false,
     },
   });
   mainWindow.loadURL('app://localhost/index.html');
