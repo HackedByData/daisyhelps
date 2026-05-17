@@ -39,3 +39,31 @@ function fadeOut(): void {
 
 window.daisyAPI?.onShowSubtitle?.((newText: string) => render(newText));
 window.daisyAPI?.onClearSubtitle?.(() => fadeOut());
+
+// Close button — turn subtitles off for the session. The host window defaults
+// to setIgnoreMouseEvents(true, { forward: true }) so all clicks pass through;
+// we toggle passthrough off only while the cursor is over the X so the button
+// is clickable without blocking clicks elsewhere on the pill.
+const closeBtn = document.getElementById('close-x') as HTMLButtonElement | null;
+let cursorOverX = false;
+function setSubtitlePassthrough(passthrough: boolean): void {
+  if (cursorOverX === !passthrough) return;
+  cursorOverX = !passthrough;
+  window.daisyAPI?.subtitleSetPassthrough?.(passthrough);
+}
+
+window.addEventListener('mousemove', (e) => {
+  if (!closeBtn || pill.hidden) { setSubtitlePassthrough(true); return; }
+  const r = closeBtn.getBoundingClientRect();
+  const inside = e.clientX >= r.left && e.clientX <= r.right
+              && e.clientY >= r.top  && e.clientY <= r.bottom;
+  setSubtitlePassthrough(!inside);
+});
+
+closeBtn?.addEventListener('click', () => {
+  window.daisyAPI?.subtitleEnabledSet?.(false);
+  // Optimistically fade out locally so there's no flash of pill while the
+  // round-trip through main + the broadcast back finishes.
+  fadeOut();
+  setSubtitlePassthrough(true);
+});

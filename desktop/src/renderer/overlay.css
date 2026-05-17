@@ -151,3 +151,29 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .mark, .mark__petal, .mark__core, .ring { animation: none !important; transition: none !important; }
 }
+
+/* ── Close button ──
+   Small red × in the top-right of the 72×72 overlay window. Sits above the
+   daisy mark so the petal animation can't paint over it. Click hides the
+   overlay window (re-show via tray). Sibling of .mark so its mousedown
+   doesn't trigger the drag handler attached to .mark. */
+.close-x {
+  position: absolute;
+  top: 0; right: 0;
+  width: 20px; height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #B43E2A;          /* matches --alert in styles.css */
+  color: #FBF7EE;
+  font: 700 14px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  z-index: 10;
+  transition: transform .15s ease, filter .15s ease;
+  -webkit-user-select: none; user-select: none;
+}
+.close-x:hover  { transform: scale(1.1); filter: brightness(1.08); }
+.close-x:active { transform: scale(0.92); }
+.close-x:focus-visible { outline: 2px solid #FBF7EE; outline-offset: 2px; }

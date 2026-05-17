@@ -58,4 +58,6 @@ contextBridge.exposeInMainWorld('daisyAPI', {
   onSubtitleEnabledChanged: (cb: (enabled: boolean) => void) => {
     ipcRenderer.on('daisy:subtitle-enabled-changed', (_e, enabled) => cb(enabled));
   },
+  subtitleSetPassthrough: (passthrough: boolean) =>
+    ipcRenderer.send('daisy:subtitle-set-passthrough', passthrough),
 });

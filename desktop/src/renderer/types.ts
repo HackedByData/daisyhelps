@@ -66,6 +66,7 @@ export interface DaisyAPI {
   subtitleEnabledGet(): Promise<boolean>;
   subtitleEnabledSet(enabled: boolean): void;
   onSubtitleEnabledChanged(cb: (enabled: boolean) => void): void;
+  subtitleSetPassthrough(passthrough: boolean): void;
 }
 
 declare global {

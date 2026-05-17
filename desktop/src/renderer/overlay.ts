@@ -40,3 +40,12 @@ window.addEventListener('mouseup', () => {
   dragMoved = false;
   mark.classList.remove('dragging');
 });
+
+// Close button — hides the overlay window. stopPropagation on mousedown
+// ensures the click can't be misread as a tap on the daisy.
+const closeBtn = document.getElementById('close-x');
+closeBtn?.addEventListener('mousedown', (e) => { e.stopPropagation(); });
+closeBtn?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  window.daisyAPI?.overlayHide?.();
+});

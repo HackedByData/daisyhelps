@@ -172,7 +172,10 @@ function createSubtitle(): void {
     },
   });
   subtitleWindow.setAlwaysOnTop(true, 'screen-saver');
-  subtitleWindow.setIgnoreMouseEvents(true);
+  // forward: true so the renderer can hit-test mousemove against the close
+  // button. Renderer toggles passthrough off only while the cursor is over
+  // the X; clicks anywhere else still pass through.
+  subtitleWindow.setIgnoreMouseEvents(true, { forward: true });
   subtitleWindow.loadFile(path.join(__dirname, 'renderer', 'subtitle.html'));
   subtitleWindow.on('closed', () => { subtitleWindow = null; });
 }
@@ -375,6 +378,15 @@ app.whenReady().then(() => {
   ipcMain.handle('daisy:subtitle-enabled-get', () => appSettings.subtitles_enabled);
   ipcMain.on('daisy:subtitle-enabled-set', (_e, enabled: boolean) => {
     setSubtitlesEnabled(!!enabled);
+  });
+
+  // Subtitle passthrough toggle. Renderer flips it off while the cursor is
+  // over the close-X so the button is clickable; clicks anywhere else on
+  // the pill pass through to whatever's underneath.
+  ipcMain.on('daisy:subtitle-set-passthrough', (_e, passthrough: boolean) => {
+    if (!subtitleWindow) return;
+    if (passthrough) subtitleWindow.setIgnoreMouseEvents(true, { forward: true });
+    else             subtitleWindow.setIgnoreMouseEvents(false);
   });
 
   // Serve renderer files via app:// so Babel's XHR (used for src="*.jsx") works
