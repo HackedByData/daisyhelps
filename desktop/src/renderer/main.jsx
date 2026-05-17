@@ -50,6 +50,19 @@ function base64Pcm16ToFloat32(b64) {
   return float32;
 }
 
+// "Goodbye, Daisy" detector — matches the literal farewell in EN/ES.
+// Punctuation is collapsed before matching; "bye" alone is intentionally
+// excluded (too many false positives).
+function isFarewell(text) {
+  if (!text) return false;
+  const norm = String(text)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return /\b(goodbye|good\s+bye|bye\s+bye|adi[oó]s|hasta\s+luego|hasta\s+pronto)\s+daisy\b/.test(norm);
+}
+
 // ─────────────────────────────────────────────────────────────
 // Real backend hook — WebSocket + mic + audio playback + screenshot
 // Matches the protocol in docs/API.md and mirrors the wire client
@@ -86,6 +99,16 @@ function useDaisyBackend() {
   const micNodeRef      = useRef(null);
   const playbackCtxRef  = useRef(null);
   const playbackTimeRef = useRef(0);
+  // After an interrupt, drop any audio_chunks that arrive before the backend
+  // has fully cancelled. ~1500ms covers Render's WS latency + a generous tail
+  // of in-flight chunks; without this, mid-stream chunks would recreate the
+  // AudioContext and Daisy would briefly resume.
+  const discardAudioUntilRef = useRef(0);
+  // Tracks every BufferSource currently scheduled on the playback context so
+  // interruptIfBusy can call .stop() on each. Closing the AudioContext is
+  // async on Windows and doesn't reliably silence the speakers in one tick —
+  // explicit per-source stop() does.
+  const activeSourcesRef = useRef(new Set());
   // Silence-cutoff: stop mic after 5s with no speech above threshold.
   const SILENCE_THRESHOLD = 0.012;  // RMS of float32 mono audio
   const SILENCE_TIMEOUT_MS = 5000;
@@ -151,6 +174,12 @@ function useDaisyBackend() {
           case 'transcript':
             setUserText(msg.text);
             partialRef.current = '';
+            // Voice farewell: if the user said "Goodbye, Daisy" (any variant),
+            // tear down and quit. Only act on the final transcript so a
+            // partial doesn't trigger early.
+            if ((msg.final ?? true) && isFarewell(msg.text)) {
+              goodbyeAndQuitRef.current?.();
+            }
             break;
           case 'daisy_text':
             if (msg.partial) {
@@ -219,6 +248,11 @@ function useDaisyBackend() {
   }, []);
 
   function playPcmChunk(b64) {
+    if (Date.now() < discardAudioUntilRef.current) return;
+    // If the user is currently talking, the previous turn's audio shouldn't
+    // sneak through. (audio_end / interruptIfBusy may have raced with chunks
+    // already in flight on the WS.)
+    if (liveStateRef.current === 'listening') return;
     if (!playbackCtxRef.current) {
       playbackCtxRef.current = new AudioContext({ sampleRate: 24000 });
       playbackTimeRef.current = playbackCtxRef.current.currentTime;
@@ -233,6 +267,10 @@ function useDaisyBackend() {
     const startAt = Math.max(ctx.currentTime, playbackTimeRef.current);
     src.start(startAt);
     playbackTimeRef.current = startAt + buffer.duration;
+    // Track the node so interruptIfBusy can stop() it. onended removes it
+    // from the set after it plays through naturally.
+    activeSourcesRef.current.add(src);
+    src.onended = () => activeSourcesRef.current.delete(src);
   }
 
   function stopMicCapture() {
@@ -248,7 +286,41 @@ function useDaisyBackend() {
     }
   }
 
+  // Barge-in. Called before any new user-initiated turn (Talk button, overlay
+  // click, text submit) so the user can cut Daisy off mid-thought.
+  // - sends WS interrupt → backend cancels TTS/LLM and stops streaming
+  // - closes the playback AudioContext → already-queued chunks stop playing
+  // - opens a brief discard window → in-flight chunks the backend already sent
+  //   are dropped rather than starting a fresh playback context
+  // - clears the caption / click indicator so the next turn starts clean
+  // Refs are read instead of `state` so this can stay outside the callback's
+  // deps and not invalidate startTalking on every state change.
+  const liveStateRef = useRef('idle');
+  useEffect(() => { liveStateRef.current = state; }, [state]);
+  const interruptIfBusy = useCallback(() => {
+    if (liveStateRef.current === 'idle') return;
+    send({ type: 'interrupt' });
+    discardAudioUntilRef.current = Date.now() + 1500;
+    // Explicitly stop every queued buffer source — closing the context alone
+    // doesn't reliably silence Windows' audio buffer in time.
+    activeSourcesRef.current.forEach((s) => {
+      try { s.onended = null; s.stop(0); s.disconnect(); } catch {}
+    });
+    activeSourcesRef.current.clear();
+    try { playbackCtxRef.current?.close(); } catch {}
+    playbackCtxRef.current = null;
+    playbackTimeRef.current = 0;
+    setDaisyText('');
+    partialRef.current = '';
+    setDaisyStreaming(false);
+    window.daisyAPI?.clearIndicator?.();
+    setClickHint(null);
+  }, [send]);
+
   const startTalking = useCallback(async () => {
+    // Barge-in: if Daisy is mid-thinking or speaking, cancel that turn so the
+    // user can take the floor.
+    interruptIfBusy();
     setUserText('');
     setErrorMsg(null);
     // Optimistic: kick the UI into "listening" immediately so the overlay
@@ -313,7 +385,7 @@ function useDaisyBackend() {
       }
       setState('idle');
     }
-  }, [send]);
+  }, [send, interruptIfBusy]);
 
   const stopTalking = useCallback(() => {
     stopMicCapture();
@@ -327,6 +399,9 @@ function useDaisyBackend() {
   // audio_end.
   const startTalkingRef = useRef(null);
   useEffect(() => { startTalkingRef.current = startTalking; }, [startTalking]);
+  // Same ref pattern for goodbyeAndQuit — the transcript handler needs the
+  // freshest callback, but goodbyeAndQuit is declared after this useEffect.
+  const goodbyeAndQuitRef = useRef(null);
 
   // Capture a screenshot via the preload IPC and send it on the wire.
   // Used by the overlay click flow ("show daisy my screen + start listening").
@@ -394,9 +469,29 @@ function useDaisyBackend() {
     setDaisyStreaming(false);
   }, [send]);
 
+  // "Goodbye, Daisy" → tear everything down and quit Electron.
+  // Stops mic + active TTS, sends end_session so the backend can release the
+  // session, closes the WS, then hands off to the main process to quit.
+  const goodbyeAndQuit = useCallback(() => {
+    interruptIfBusy();
+    stopMicCapture();
+    try { send({ type: 'end_session' }); } catch {}
+    try { wsRef.current?.close(); } catch {}
+    window.daisyAPI?.overlayHide?.();
+    // Tiny delay so the WS frame and audio teardown have a chance to flush
+    // before Electron yanks the process.
+    setTimeout(() => { window.daisyAPI?.quitApp?.(); }, 150);
+  }, [send, interruptIfBusy]);
+  useEffect(() => { goodbyeAndQuitRef.current = goodbyeAndQuit; }, [goodbyeAndQuit]);
+
   const sendUserText = useCallback((text) => {
-    if (text && text.trim()) send({ type: 'user_text', text });
-  }, [send]);
+    if (!text || !text.trim()) return;
+    if (isFarewell(text)) { goodbyeAndQuit(); return; }
+    // Barge-in: if Daisy is mid-thinking/speaking, cancel that turn so this
+    // text becomes the next prompt instead of being queued behind the reply.
+    interruptIfBusy();
+    send({ type: 'user_text', text });
+  }, [send, interruptIfBusy, goodbyeAndQuit]);
 
   const clearError = useCallback(() => setErrorMsg(null), []);
 
@@ -523,7 +618,9 @@ function App() {
         daisy.stopTalking();
         return;
       }
-      if (s !== 'idle') return; // ignore clicks while thinking/speaking
+      // Any other state (idle / thinking / speaking) → start a fresh turn.
+      // startTalking() will interrupt the current turn first if Daisy is
+      // mid-thought, so the user can cut her off and ask something new.
       // Screenshot first so the backend has it when transcription completes.
       await daisy.sendScreenshot();
       void daisy.startTalking();

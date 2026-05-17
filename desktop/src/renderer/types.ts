@@ -45,6 +45,7 @@ export interface DaisyAPI {
   captureScreen(): Promise<{ pngBase64: string } | { error: string }>;
   onUpdateReady(cb: (info: { version: string }) => void): void;
   quitAndInstall(): void;
+  quitApp(): void;
   overlayShow(): void;
   overlayHide(): void;
   overlayState(state: string): void;

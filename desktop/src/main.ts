@@ -168,6 +168,13 @@ app.whenReady().then(() => {
     autoUpdater.quitAndInstall();
   });
 
+  // Renderer can request a full app quit (used by the "Goodbye, Daisy"
+  // voice-exit flow). Bypasses the close-to-tray behaviour in createWindow.
+  ipcMain.on('daisy:quit-app', () => {
+    quittingForReal = true;
+    app.quit();
+  });
+
   // Overlay IPC
   ipcMain.on('daisy:overlay-show', () => overlayWindow?.show());
   ipcMain.on('daisy:overlay-hide', () => overlayWindow?.hide());

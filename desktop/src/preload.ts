@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('daisyAPI', {
     ipcRenderer.on('daisy:update-ready', (_e, info) => cb(info));
   },
   quitAndInstall: () => ipcRenderer.send('daisy:quit-and-install'),
+  quitApp: () => ipcRenderer.send('daisy:quit-app'),
 
   // Overlay control (called from main renderer)
   overlayShow:  () => ipcRenderer.send('daisy:overlay-show'),
