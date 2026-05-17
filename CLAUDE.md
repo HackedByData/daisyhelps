@@ -4,11 +4,14 @@ Project orientation for Claude Code (or any AI coding agent) working in this rep
 
 ## What this is
 
-**Daisy Helps** — FastAPI + WebSocket backend for a voice AI companion that walks tech-novice users (especially the elderly) through computer tasks one step at a time. Daisy listens by voice, sees the screen on demand via screenshots, and guides — she never takes actions for the user.
+**Daisy Helps** — a voice AI companion that walks tech-novice users (especially the elderly) through computer tasks one step at a time. Daisy listens by voice, sees the screen when asked, and guides — she never takes actions for the user.
 
-Architecture is a single long-lived WebSocket per client (`/ws/{session_id}`) driving a streaming pipeline: VAD → STT → LLM (Claude Haiku/Sonnet) → TTS. Multilingual (EN + ES). Per-turn cancellation enables sub-200ms interrupts. Session state is in-memory.
+This repo holds three things:
+1. **`backend/`** — FastAPI + WebSocket server deployed at `api.daisyhelps.com`. Single long-lived WS per client (`/ws/{session_id}`) driving a streaming pipeline: VAD → STT → LLM (Claude Haiku/Sonnet) → TTS. Multilingual (EN + ES). Per-turn cancellation enables sub-200ms interrupts. Session state is in-memory.
+2. **`desktop/`** — Electron + TypeScript Windows app users download from `daisyhelps.com`. Ports the legacy `test_harness/test_page.html` into a production UI; adds native one-click screen capture via `desktopCapturer`, system-tray support, and auto-update from GitHub Releases.
+3. **`landing/`** — Static single-page site served from a Render Static Site at `daisyhelps.com`. "Download for Windows" CTA redirects to the latest GitHub Release asset.
 
-The backend is **feature-complete through Phase 4** (voice loop, vision, multi-turn, interrupts, language toggle, text fallback). Phase 5 is **deploy-ready** (`render.yaml` exists, all docs finalized) but the actual Render deploy + DNS are user-interactive steps — see `TODO.md`.
+The backend is **feature-complete through Phase 5** (voice loop, vision, multi-turn, interrupts, language toggle, text fallback, click-indicator) and deployed. Phase 6 is the desktop + landing pivot — see `docs/superpowers/specs/2026-05-16-daisy-helps-desktop-pivot-design.md`.
 
 ## Build / run / test
 
@@ -30,7 +33,36 @@ pytest -q
 
 Required env vars: `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID_EN`, `ELEVENLABS_VOICE_ID_ES`. Optional `LOG_LEVEL` (default INFO). All loaded via `pydantic-settings` — don't read `.env` directly.
 
-## What's been built (Phases 0–5)
+## Desktop app — build / run
+
+```powershell
+# Setup (one-time)
+cd desktop
+npm install
+
+# Run from source (connects to wss://api.daisyhelps.com)
+npm start
+
+# Build Windows installer locally
+npm run release
+# → desktop/release/DaisyHelps-Setup-x.y.z.exe
+
+# Cut a public release (CI builds and publishes to GitHub Releases)
+git tag v0.1.x
+git push --tags
+```
+
+## Landing page — local preview
+
+```powershell
+cd landing
+python -m http.server 8080
+# Open http://localhost:8080/
+```
+
+Production deploy is automatic via the Render Blueprint in `render.yaml`.
+
+## What's been built (Phases 0–6)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -40,6 +72,7 @@ Required env vars: `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `ELEVENLABS_API_KEY`, `E
 | 3 — Multi-turn + interrupts | `current_turn_task: asyncio.Task` cancelled via `interrupt`, TTS stream `aclose()` on `CancelledError`, conversation history preserved across turns | ✅ |
 | 4 — Language + text | EN↔ES voice flip per turn (verified — `_voice_id(language)` called inside `stream_tts`), `user_text` fully bypasses STT | ✅ |
 | 5 — Deploy + docs | `render.yaml`, `test_harness/test_client.py`, finalized RUNBOOK + DECISIONS + README | Code ready; deploy pending |
+| 6 — Desktop + landing | Electron Windows app under `desktop/`; landing site under `landing/`; CI release workflow; daisyhelps.com live | ✅ |
 
 Five automated smokes (Phase 0–4) passed end-to-end against real Anthropic + ElevenLabs APIs. See git history for per-task commits (`phase-N:` prefix).
 
@@ -52,6 +85,9 @@ Five automated smokes (Phase 0–4) passed end-to-end against real Anthropic + E
 - **Demo script** — `docs/DEMO.md`
 - **Current state + remaining work** — `TODO.md`
 - **Original spec / plan** — `docs/superpowers/specs/2026-05-16-daisy-helps-backend-design.md` and `docs/superpowers/plans/2026-05-16-daisy-helps-backend.md`
+- **Desktop client behavior** — `desktop/src/renderer/app.ts` (WebSocket client, mic, audio playback, UI state)
+- **Desktop native bridge** — `desktop/src/main.ts` (screen capture, tray, auto-update); `desktop/src/preload.ts` (renderer-exposed API surface)
+- **Landing page** — `landing/index.html`
 
 ## Working conventions
 
@@ -62,6 +98,8 @@ Five automated smokes (Phase 0–4) passed end-to-end against real Anthropic + E
 - **Pipeline modules** in `backend/pipeline/` follow a consistent shape: abstract interface (or pure function) + concrete impl + factory (e.g., `STTProvider` + `GroqWhisperSTT` + `make_stt_provider`).
 - **Don't bump `readiness.py` ahead of behavior.** The dict is the source of truth for what's actually live; flipping a flag while the handler still raises `not_yet_implemented` will desync the parallel frontend agent.
 - **`teammates push to this repo` — verify before force-pushing.** Niya Paul (UCI teammate) pushes occasionally; her commits get rebased on top of, never destroyed.
+- **Desktop commits use `desktop:` prefix**, landing uses `landing:`, CI uses `ci:`. Backend keeps `phase-N:` as before.
+- **The desktop app speaks the same WebSocket contract as the test harness.** Don't change one without the other — `docs/API.md` is the single contract for both.
 
 ## Known constraints / gotchas
 
@@ -73,6 +111,11 @@ Five automated smokes (Phase 0–4) passed end-to-end against real Anthropic + E
 - **`.env` has a stray `XAI_API_KEY`** from another project — unused here, harmless, can delete.
 - **`NavigEase_Requirements_Document.docx` at repo root** is from teammate Niya; for a different project but committed to this repo's history.
 - **Test page uses `ScriptProcessorNode`** (deprecated Web Audio API). Works in all browsers. Future migration to `AudioWorklet` is queued (see below).
+- **Desktop app uses `ScriptProcessorNode`** for mic capture (same as the test harness). Future migration to `AudioWorklet` is queued.
+- **Multi-monitor screen picker** uses `nodeIntegration: true` for the small picker window — needed for the `require('electron')` call. Renderer that talks to the network stays sandboxed.
+- **Code signing deferred at v1** — Windows users see a SmartScreen "Unknown publisher" warning. Landing page documents how to click through.
+- **Auto-update feed lives at GitHub Releases.** electron-updater reads `latest.yml` from `releases/latest/`. If a release is in "draft" state, auto-update won't see it — publish releases via the GitHub UI or rely on CI's `--publish always` to publish directly.
+- **The `landing/_redirects` file and `render.yaml`'s `routes` block both define the `/download` redirect.** Render reads `routes`; the `_redirects` file is a fallback for non-Render hosts.
 
 ## Pending work — 3 user-action items
 
@@ -99,7 +142,8 @@ When picking one up, here's where to start:
 | **Real STT integration (mic input) verified end-to-end** | Already wired; needs a manual browser run with a real recording. Watch server logs for `Groq STT` calls |
 | **Daisy persona iteration** (plan Task 26 — partially deferred) | Run the Zoom-with-doctor demo 5+ times by voice; tighten `DAISY_PROMPT_EN`/`ES` for "lists multiple steps", "jargon", "doesn't recover gracefully" failure patterns. Commit each tweak separately. Stop after 3 smooth consecutive runs |
 | **Retry on TTS / LLM transient errors** (currently emits `turn_failed` once and stops) | Wrap the API calls in `_run_turn` with one retry + brief backoff; preserve cancellation semantics |
-| **Production frontend** (backend is ready; contract is `docs/API.md`) | New repo. Read `GET /api/status` on app load, open WS, send `config`, follow the lifecycle diagram in `docs/API.md` |
+| **macOS / Linux installers** | electron-builder cross-target is already configured for Windows in `desktop/electron-builder.yml`. Adding macOS requires an Apple Developer cert ($99/yr) + signing + notarization; Linux just needs adding `target: AppImage` to the same file. The CI workflow needs a matrix expansion. |
+| **Signed Windows installer** | Add `certificateFile` + `certificatePassword` (CI secret) to `desktop/electron-builder.yml` `win` block. EV cert recommended (~$300/yr) to skip SmartScreen entirely. |
 | **Migrate `datetime.utcnow()` → `datetime.now(timezone.utc)`** | Two call sites in `backend/session.py` (`set_screenshot`, `has_fresh_screenshot`); update `tests/test_session.py` similarly |
 
 ## Subagent-driven workflow notes
