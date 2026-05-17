@@ -45,3 +45,34 @@ A decision log. One paragraph per choice: context, decision, rationale, alternat
 **Rationale:** Computer-use is first-party, requires zero new dependencies, and per Anthropic's own guidance is dramatically more reliable for pixel coordinates than raw-JSON prompting. The locator runs after `audio_end` so voice latency is unaffected. The indicator is best-effort and degrades silently on any failure. Coordinates are returned in screenshot-native pixel space so the desktop client can position the overlay regardless of DPI scaling or multi-monitor offset.
 **Alternatives considered:** Set-of-Mark prompting with OmniParser or OCR (very accurate but adds a UI-element detector dependency and a pre-processing pass per screenshot). Raw JSON prompting ("return `{x, y}`") — unreliable for pixel coords. Multiple-indicator sequences — defers to v2; conflicts with the "one step at a time" prompt rule. Bounding-box indicators — defers to v2; computer-use returns a point, region would need a follow-up call. Actually executing the click — rejected as a violation of the product principle, even though the desktop client makes it technically trivial.
 **How to swap:** Replace the body of `backend/pipeline/locator.locate_click_target` with any other targeting backend that returns a `ClickTarget`. Wire format and trigger conditions are unchanged.
+
+## Desktop framework: Electron over Tauri / PyWebView
+**Context:** Need a desktop wrapper for the existing HTML/JS UI with native mic + screen capture.
+**Decision:** Electron with TypeScript.
+**Rationale:** Mature `desktopCapturer` API matches our exact need (one-line screen-to-PNG). `electron-updater` against GitHub Releases gives auto-update for free. Bundled Chromium = identical rendering between dev and prod. Team is JS-fluent.
+**Alternatives considered:** Tauri (~10× smaller installer but mic/screen plugins less mature, plus Rust learning curve). PyWebView (would let us reuse Python skills but loses auto-update story and is overkill given keys stay server-side).
+
+## API keys: server-side, no BYOK
+**Context:** Elderly target users won't have Anthropic / Groq / ElevenLabs accounts.
+**Decision:** Keys stay in Render backend env vars; desktop app is a thin client.
+**Rationale:** Zero-config install is critical for the demographic. Server-side keys also keep usage observable in one place for cost monitoring.
+**Alternatives considered:** BYOK with first-launch wizard (kills the demographic). Hybrid auth-proxy with short-lived tokens (engineering complexity not justified at this scale).
+**Cost implication:** API spend scales with installs. Acceptable for early stage; revisit at >1000 active users.
+
+## Windows-only at v1; macOS / Linux deferred
+**Context:** Target users predominantly on Windows. macOS requires Apple Developer Program ($99/yr) + signing + notarization.
+**Decision:** Ship Windows installer first. Architecture is cross-target-ready in `desktop/electron-builder.yml`.
+**Rationale:** Smallest scope that reaches the target audience. Mac/Linux additions are config-only later.
+**Alternatives considered:** Day-one Mac (real audience but signing setup eats a sprint). Day-one Linux (easy build, near-zero target audience).
+
+## Installer hosting: GitHub Releases (not S3, not Render)
+**Context:** Need a stable URL and an auto-update feed.
+**Decision:** GitHub Releases hosts `.exe` and `latest.yml`. `daisyhelps.com/download` redirects to the latest release asset.
+**Rationale:** Free, durable, electron-updater natively reads the GH Releases format. Decouples release artifact from marketing site.
+**Alternatives considered:** S3/CloudFront (more setup, costs money). Render Static (works but loses electron-updater integration). api.daisyhelps.com (couples releases to backend deploys).
+
+## Code signing deferred at v1
+**Context:** Unsigned Windows installers trigger SmartScreen "Unknown publisher" warning.
+**Decision:** Ship unsigned at v1; landing page documents the warning.
+**Rationale:** EV code-signing certs are ~$300/yr and require corporate ID verification. Not justified before product-market fit. Warning is annoying but doesn't block install.
+**How to swap:** Buy EV cert, add four lines to `desktop/electron-builder.yml`, set two CI secrets (`WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD`), retag a release.
