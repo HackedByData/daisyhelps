@@ -3,6 +3,23 @@
 ## Overview
 A FastAPI server holds a long-lived WebSocket per user. Each connection drives a streaming pipeline that turns user voice into Daisy voice, with vision attached when a fresh screenshot exists.
 
+## Clients
+
+Two clients speak the WebSocket protocol in `docs/API.md`:
+
+| Client | Where | When to use |
+|---|---|---|
+| **Desktop app** (Electron) | `desktop/` | Production. What users download from daisyhelps.com. |
+| **Backend debug harness** | `test_harness/test_page.html` | Backend development. Served at `GET /test`. Use this to exercise the backend without launching the Electron app. |
+
+The desktop app adds native capabilities the browser harness cannot offer:
+- **Screen capture** via Electron's `desktopCapturer` — single button click, sourced from the OS, no file picker.
+- **Persistent mic permission** granted at install time — no per-session browser prompt.
+- **System tray** — Daisy stays one click away while the user works in another window.
+- **Auto-update** from GitHub Releases via `electron-updater`.
+
+Both clients speak the identical wire protocol. A wire-protocol change requires updating both (and `docs/API.md`).
+
 ## Components
 | Component | File | Responsibility |
 |---|---|---|
@@ -20,12 +37,16 @@ A FastAPI server holds a long-lived WebSocket per user. Each connection drives a
 
 ## Data flow
 ```
-ws audio_chunk → VADBuffer.ingest → utterance bytes → STT.transcribe →
+desktop renderer or test harness
+   ├─ mic 16kHz PCM ──ws audio_chunk──▶ VADBuffer.ingest → utterance bytes → STT.transcribe →
+   ├─ desktopCapturer or file picker ──ws screenshot──▶ session.set_screenshot
+   ▼
 transcript msg →
 LLM (Sonnet if has_image else Haiku) → text deltas →
   ├─ daisy_text(partial=true) per delta
   └─ TTS sentence-buffered stream →
        └─ audio_chunk msgs → audio_end → daisy_text(partial=false) full text
+       (renderer queues PCM and plays at 24kHz)
 ```
 
 ## Latency budget
