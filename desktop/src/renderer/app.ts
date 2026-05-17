@@ -118,23 +118,31 @@ function handleServerMsg(msg: ServerMsg): void {
 // --- Mic capture ---
 
 async function startMic(): Promise<void> {
-  if (!micCtx) micCtx = new AudioContext({ sampleRate: 16000 });
-  micStream = await navigator.mediaDevices.getUserMedia({
-    audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true },
-  });
-  micSource = micCtx.createMediaStreamSource(micStream);
-  const bufferSize = 1600;  // 100ms at 16kHz
-  micNode = micCtx.createScriptProcessor(bufferSize, 1, 1);
-  micNode.onaudioprocess = (e) => {
-    const float32 = e.inputBuffer.getChannelData(0);
-    const data = float32ToBase64Pcm16(float32);
-    send({ type: 'audio_chunk', data, sequence: micSeq++ });
-  };
-  micSource.connect(micNode);
-  micNode.connect(micCtx.destination);
-  micActive = true;
-  micBtn.classList.add('active');
-  micBtn.querySelector('.label')!.textContent = 'Stop talking';
+  try {
+    if (!micCtx) micCtx = new AudioContext({ sampleRate: 16000 });
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true },
+    });
+    micSource = micCtx.createMediaStreamSource(micStream);
+    const bufferSize = 1600;  // 100ms at 16kHz
+    micNode = micCtx.createScriptProcessor(bufferSize, 1, 1);
+    micNode.onaudioprocess = (e) => {
+      const float32 = e.inputBuffer.getChannelData(0);
+      const data = float32ToBase64Pcm16(float32);
+      send({ type: 'audio_chunk', data, sequence: micSeq++ });
+    };
+    micSource.connect(micNode);
+    micNode.connect(micCtx.destination);
+    micActive = true;
+    micBtn.classList.add('active');
+    micBtn.querySelector('.label')!.textContent = 'Stop talking';
+  } catch (err) {
+    console.error('startMic failed', err);
+    captions.textContent = 'Could not access the microphone. Check Windows microphone settings, then try again.';
+    micActive = false;
+    micBtn.classList.remove('active');
+    micBtn.querySelector('.label')!.textContent = 'Start talking';
+  }
 }
 
 function stopMic(): void {
