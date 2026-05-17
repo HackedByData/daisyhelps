@@ -1,9 +1,9 @@
 from backend.readiness import READINESS, is_live
 
 
-def test_phase_bumped_to_click_indicator():
-    assert READINESS["phase"] == 5
-    assert READINESS["phase_name"] == "click-indicator"
+def test_phase_bumped_to_desktop_launch():
+    assert READINESS["phase"] == 6
+    assert READINESS["phase_name"] == "desktop-launch"
 
 
 def test_click_indicator_live():

@@ -12,8 +12,8 @@ STATUS_STUBBED = "stubbed"
 READINESS: dict = {
     "service": "daisy-helps-backend",
     "version": "0.1.0",
-    "phase": 5,
-    "phase_name": "click-indicator",
+    "phase": 6,
+    "phase_name": "desktop-launch",
     "http": {
         "GET /healthz": STATUS_LIVE,
         "GET /": STATUS_LIVE,
