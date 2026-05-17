@@ -54,7 +54,21 @@ function saveSettings(): void {
 }
 
 function rebuildTrayMenu(): void {
-  // Real implementation in Task 7. Stub so setSubtitlesEnabled is self-contained.
+  if (!tray) return;
+  const menu = Menu.buildFromTemplate([
+    { label: 'Show Daisy', click: () => { mainWindow?.show(); mainWindow?.focus(); } },
+    { label: 'Hide Daisy', click: () => mainWindow?.hide() },
+    { type: 'separator' },
+    {
+      label: 'Subtitles',
+      type: 'checkbox',
+      checked: appSettings.subtitles_enabled,
+      click: (item) => setSubtitlesEnabled(item.checked),
+    },
+    { type: 'separator' },
+    { label: 'Quit', click: () => { quittingForReal = true; app.quit(); } },
+  ]);
+  tray.setContextMenu(menu);
 }
 
 function setSubtitlesEnabled(enabled: boolean): void {
@@ -217,13 +231,7 @@ function createWindow(): void {
 function createTray(): void {
   tray = new Tray(path.join(__dirname, 'tray-icon.png'));
   tray.setToolTip('Daisy Helps');
-  const menu = Menu.buildFromTemplate([
-    { label: 'Show Daisy', click: () => { mainWindow?.show(); mainWindow?.focus(); } },
-    { label: 'Hide Daisy', click: () => mainWindow?.hide() },
-    { type: 'separator' },
-    { label: 'Quit', click: () => { quittingForReal = true; app.quit(); } },
-  ]);
-  tray.setContextMenu(menu);
+  rebuildTrayMenu();
   tray.on('click', () => {
     if (mainWindow?.isVisible()) mainWindow.hide();
     else { mainWindow?.show(); mainWindow?.focus(); }
