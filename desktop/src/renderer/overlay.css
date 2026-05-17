@@ -177,3 +177,21 @@ html, body {
 .close-x:hover  { transform: scale(1.1); filter: brightness(1.08); }
 .close-x:active { transform: scale(0.92); }
 .close-x:focus-visible { outline: 2px solid #FBF7EE; outline-offset: 2px; }
+
+/* ── One-time attention pulse ──
+   Fired once when the user is auto-minimized for the first time so they
+   notice where Daisy went. Targets a body-level class so it composes with
+   the per-state .mark animations (idle/listening/...) rather than
+   replacing them. Cream-tinted box-shadow gives the "glow." */
+body.attention-pulse .mark {
+  animation: attention-pulse 1.2s ease-in-out 1;
+}
+@keyframes attention-pulse {
+  0%   { transform: scale(1.00); filter: drop-shadow(0 0 0 rgba(251, 247, 238, 0)); }
+  35%  { transform: scale(1.12); filter: drop-shadow(0 0 12px rgba(251, 247, 238, 0.85)); }
+  70%  { transform: scale(1.04); filter: drop-shadow(0 0 6px rgba(251, 247, 238, 0.45)); }
+  100% { transform: scale(1.00); filter: drop-shadow(0 0 0 rgba(251, 247, 238, 0)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.attention-pulse .mark { animation: none !important; }
+}

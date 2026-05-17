@@ -49,3 +49,18 @@ closeBtn?.addEventListener('click', (e) => {
   e.stopPropagation();
   window.daisyAPI?.overlayHide?.();
 });
+
+// One-time attention pulse — fired by main when the user is first
+// auto-minimized. Adding the class to <body> lets the keyframes layer
+// over whichever per-state .mark animation is currently running. The
+// pulse animation has iteration-count 1, so on `animationend` we strip
+// the class so future minimizes (after toggling sharing off/on) don't
+// re-fire it.
+window.daisyAPI?.onOverlayAttentionPulse?.(() => {
+  document.body.classList.add('attention-pulse');
+});
+document.addEventListener('animationend', (e) => {
+  if (e.animationName === 'attention-pulse') {
+    document.body.classList.remove('attention-pulse');
+  }
+});
