@@ -1,8 +1,8 @@
 # TODO
 
-State of the Daisy Helps backend repo and what's left before the demo.
+State of the Daisy Helps repo. Phase 6 — the desktop + landing pivot — is in progress; backend Phase 5 (deployed) is complete.
 
-**Last updated:** 2026-05-17 (after Render deploy + custom domain live)
+**Last updated:** 2026-05-16 (Phase 6 in progress)
 
 ---
 
@@ -10,88 +10,73 @@ State of the Daisy Helps backend repo and what's left before the demo.
 
 | Area | State |
 |---|---|
-| Phase 0 — Scaffold | ✅ Complete + smoke verified |
-| Phase 1 — Voice loop (VAD/STT/LLM/TTS) | ✅ Wired + automated end-to-end smoke (Anthropic + ElevenLabs) PASS |
-| Phase 2 — Vision (screenshot → Sonnet) | ✅ Wired + smoke PASS (Sonnet correctly described a 128×128 PNG) |
-| Phase 3 — Multi-turn + interrupts | ✅ Wired + smoke PASS (Turn 2 quoted Turn 1 → history preserved) |
-| Phase 4 — Language toggle + text fallback | ✅ Smoke PASS (EN→ES→EN voice flip per-turn) |
-| Phase 5 — click-indicator + clear_indicator wire messages | ✅ Code complete; `phase_name: "click-indicator"` |
-| **Render deploy** | ✅ Live at https://daisyhelps-backend.onrender.com (starter plan, oregon) |
-| **DNS for api.daisyhelps.com** | ✅ Cloudflare CNAME → daisyhelps-backend.onrender.com, TLS issued |
-| Browser audio verification (mic, real screenshot, interrupt by ear) | ⏳ Pending — manual |
-| Persona / prompt iteration (plan Task 26) | ⏳ Pending — needs voice demos to judge |
-| Desktop Electron client | 🔄 In progress on `main` (separate concern from backend deploy) |
+| Phase 0 — Scaffold | ✅ |
+| Phase 1 — Voice loop | ✅ |
+| Phase 2 — Vision | ✅ |
+| Phase 3 — Multi-turn + interrupts | ✅ |
+| Phase 4 — Language toggle + text fallback | ✅ |
+| Phase 5 — Backend deploy + click-indicator | ✅ |
+| **Phase 6 — Desktop app + landing page** | 🚧 in progress |
 
-`backend/readiness.py` reports `phase: 5, phase_name: "click-indicator"`. Deployment is orthogonal to the phase axis — both `https://daisyhelps-backend.onrender.com/healthz` and `https://api.daisyhelps.com/healthz` return `{"status":"ok"}`.
+`backend/readiness.py` will bump to `phase: 6, phase_name: "desktop-launch"` after the first public release (v0.1.0).
 
-**Tests:** 29 unit tests pass (`pytest -q`). Coverage: VAD, LLM router, session, WS messages.
-
-## Deploy reference
-
-- Render service ID: `srv-d84gqc7avr4c73d3aspg`
-- Render dashboard: https://dashboard.render.com/web/srv-d84gqc7avr4c73d3aspg
-- Cloudflare zone: `daisyhelps.com` (zone id `7e0f7382aea0bfa0e538c6165fd3bd02`)
-- CNAME: `api` → `daisyhelps-backend.onrender.com`, proxied=false, TTL 300
-- Region: oregon · Plan: starter ($7/mo) · Python 3.11 (via `PYTHON_VERSION` env var)
-- Auto-deploy: enabled on `main` branch commits
+**Tests:** `pytest -q` — 29 unit tests on the backend. `cd desktop && npm test` — vitest on the audio utilities.
 
 ---
 
-## Remaining tasks
+## Phase 6 punch list
 
-### Final end-to-end voice smoke (plan Task 36, ~10 min, **manual**)
+Following the plan at `docs/superpowers/plans/2026-05-16-daisy-helps-desktop.md`:
 
-Now that the backend is deployed, run the demo by voice end-to-end:
+### Code
 
-1. Open `https://api.daisyhelps.com/test` in a browser (warm `/healthz` first — cold first-WS load is ~10s for Silero).
-2. Run the Zoom-with-doctor flow from `docs/DEMO.md`. Should complete in under 5 minutes.
-3. Validate the 13 done-criteria from spec section 13.
+- [ ] Task 1: Scaffold `desktop/` Electron + TypeScript project
+- [ ] Task 2: Wire-message TypeScript types
+- [ ] Task 3: Renderer UI shell (HTML + CSS)
+- [ ] Task 4: PCM encode/decode utilities (TDD)
+- [ ] Task 5: Renderer app — WebSocket + mic + audio playback + UI wiring
+- [ ] Task 6: Native screen capture via `desktopCapturer`
+- [ ] Task 7: System tray + minimize-to-tray
+- [ ] Task 8: Auto-update wiring (electron-updater)
+- [ ] Task 9: Build pipeline (electron-builder Windows NSIS)
+- [ ] Task 10: GitHub Actions release workflow on `v*` tags
+- [ ] Task 11: GitHub Actions PR CI for `desktop/`
+- [ ] Task 12: Landing page (`landing/index.html` + assets)
+- [ ] Task 13: Render Static Site + daisyhelps.com DNS
 
-This is the only step that needs human ears (Daisy's voice cadence, interrupt latency by ear, prompt-iteration judgment).
+### Docs
 
----
+- [ ] Task 14: `README.md`
+- [ ] Task 15: `CLAUDE.md`
+- [ ] Task 16: `TODO.md` (this file)
+- [ ] Task 17: `docs/ARCHITECTURE.md`
+- [ ] Task 18: `docs/RUNBOOK.md`
+- [ ] Task 19: `docs/DEMO.md`
+- [ ] Task 20: `docs/DECISIONS.md`
+- [ ] Task 21: `docs/API.md`
 
-## Manual browser checks worth running (locally, anytime)
+### Release
 
-The automated smokes proved every message-passing path works against real Anthropic + ElevenLabs APIs. Real audio I/O and human-perceived behavior have NOT been verified. Open `http://localhost:8000/test` (after `uvicorn backend.main:app --reload --port 8000`):
-
-- **EN voice loop** — mic → "hello Daisy" → hear an English reply
-- **ES voice loop** — language toggle → mic → "hola Daisy" → hear Spanish reply in the Spanish voice
-- **Mid-session language toggle by voice** — start EN, switch to ES mid-conversation, confirm next reply uses the ES voice (automated smoke proved this for `language_change` followed by `user_text`; this confirms via the mic path)
-- **Real-screenshot vision** — drop an email-inbox PNG (with a Zoom invite) at `test_harness/fixtures/email_screen.png`, send via the file picker, ask "find the Zoom link in my email" — Daisy should reference what she actually sees
-- **Interrupt by ear** — during a long Daisy reply, click Interrupt; audio should stop within ~200ms. (Automated smoke proved the message contract at 0.003s in-process.)
-- **Full Zoom-with-doctor demo end-to-end** per `docs/DEMO.md` — target under 5 min, screenshots at the right moments, one step per Daisy reply
-
-### Persona / prompt iteration (plan Task 26)
-
-The Phase 3 plan calls for running the Zoom-with-doctor demo 5+ times and tightening `backend/prompts.py` based on observed failures. **Failure patterns to watch for:**
-- Daisy lists multiple steps in one reply → tighten "ONE step at a time" in the prompt
-- Daisy uses jargon / goes too fast → emphasize "slowly and simple words"
-- Daisy doesn't recover gracefully when screenshot is unexpected → strengthen the recovery clause
-- Daisy doesn't ask for a screenshot when she should → tweak the visual-cue guidance
-
-Don't over-tune. Stop when 3 consecutive runs go smoothly. Each tweak is a separate commit (`phase-3: prompt iteration N: <note>`).
-
----
-
-## Repo housekeeping
-
-- **`NavigEase_Requirements_Document.docx`** at the repo root was pushed by a teammate (Niya Paul, ngpaul@uci.edu) and is for a different project. It's preserved in history. Decide whether to keep, move, or `git rm` in a follow-up commit.
-- **Untracked files** (intentionally not committed):
-  - `.env` — gitignored, has real secrets (now also includes `RENDER_API_KEY` + `CLOUDFLARE_API_TOKEN` for deploy ops)
-  - `rosa-claude-code-prompt.md` — the original source prompt the rebrand came from
-  - `elevenlabs-voice-prompt.md` — working notes from setting voice IDs
+- [ ] Task 22: Cut v0.1.0, verify daisyhelps.com download works end-to-end, bump `readiness.py` to phase 6
 
 ---
 
-## Known gotchas (for future work)
+## User-action items (require dashboard / registrar access)
 
-- `datetime.utcnow()` in `backend/session.py` emits a `DeprecationWarning` on Python 3.12+. Migrate to `datetime.now(timezone.utc)` when convenient.
-- `torch.jit.load` (used internally by `silero-vad`) emits a `DeprecationWarning` on Python 3.14+. Will likely break in a future torch release. Spec already notes ONNX export as a fallback. Render uses Python 3.11 where this doesn't fire.
-- Anthropic vision API rejects 1×1 PNGs with HTTP 400 "Could not process image". Use ≥128×128 for any minimal test fixtures.
-- `base64.standard_b64decode` does NOT accept `validate=True` — only `b64decode` does. Already fixed in `backend/main.py` screenshot branch.
-- The browser test page uses `ScriptProcessorNode` (deprecated in Web Audio API) for mic capture. Works in all current browsers. `AudioWorklet` is the modern replacement when worth the refactor.
-- First `/ws/` connect loads Silero VAD into memory (~10s cold). Warm up by hitting `/test` once before any demo.
+1. **GitHub Releases** — make sure the repo is configured so the `GITHUB_TOKEN` in CI has write access (default for `pull_request` → `push` workflows from the repo itself).
+2. **Render dashboard** — after `render.yaml` is updated (Task 13), re-sync the Blueprint to create the `daisyhelps-landing` static service. Add `daisyhelps.com` and `www.daisyhelps.com` as custom domains.
+3. **DNS** — at the daisyhelps.com registrar, add the Render-supplied ALIAS/CNAME records.
+4. **Designer pass on icons** — `desktop/build/icon.ico` and `desktop/build/tray-icon.png` are flat-color placeholders. Replace with branded versions before any marketing push.
+
+---
+
+## Backwards-compatible deferred items (carry forward from Phase 5)
+
+- **Persona / prompt iteration** — run the demo through the installed desktop app 5+ times; tighten `backend/prompts.py`.
+- **AudioWorklet migration** in `desktop/src/renderer/app.ts` (currently uses deprecated `ScriptProcessorNode`, same as the test harness).
+- **Migrate `datetime.utcnow()` → `datetime.now(timezone.utc)`** in `backend/session.py`.
+- **macOS / Linux installers** — see `CLAUDE.md` deferred-features table.
+- **EV code-signing cert** for the Windows installer — see `CLAUDE.md`.
 
 ---
 
@@ -99,12 +84,12 @@ Don't over-tune. Stop when 3 consecutive runs go smoothly. Each tweak is a separ
 
 | For | Read |
 |---|---|
+| Desktop pivot design | `docs/superpowers/specs/2026-05-16-daisy-helps-desktop-pivot-design.md` |
+| Desktop implementation plan | `docs/superpowers/plans/2026-05-16-daisy-helps-desktop.md` |
 | WebSocket protocol contract | `docs/API.md` |
-| System architecture (components, data flow) | `docs/ARCHITECTURE.md` |
-| Local dev + env vars + deployment + troubleshooting | `docs/RUNBOOK.md` |
+| System architecture | `docs/ARCHITECTURE.md` |
+| Local dev + env vars + deploy | `docs/RUNBOOK.md` |
 | Why decisions were made | `docs/DECISIONS.md` |
 | The demo script | `docs/DEMO.md` |
-| Feature readiness flags (live source of truth) | `backend/readiness.py` (or `GET /api/status`) |
+| Feature readiness flags | `backend/readiness.py` (or `GET /api/status`) |
 | Daisy's voice (system prompt) | `backend/prompts.py` |
-| Original design spec | `docs/superpowers/specs/2026-05-16-daisy-helps-backend-design.md` |
-| Original implementation plan | `docs/superpowers/plans/2026-05-16-daisy-helps-backend.md` |
