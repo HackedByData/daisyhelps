@@ -60,4 +60,19 @@ contextBridge.exposeInMainWorld('daisyAPI', {
   },
   subtitleSetPassthrough: (passthrough: boolean) =>
     ipcRenderer.send('daisy:subtitle-set-passthrough', passthrough),
+
+  // Share-screen-remembered (get/set/changed)
+  shareScreenRememberedGet: () => ipcRenderer.invoke('daisy:share-screen-remembered-get') as Promise<boolean>,
+  shareScreenRememberedSet: (enabled: boolean) => ipcRenderer.send('daisy:share-screen-remembered-set', enabled),
+  onShareScreenRememberedChanged: (cb: (enabled: boolean) => void) => {
+    ipcRenderer.on('daisy:share-screen-remembered-changed', (_e, enabled) => cb(enabled));
+  },
+
+  // Hide main window (HandoffModal OK)
+  hideMainWindow: () => ipcRenderer.send('daisy:hide-main-window'),
+
+  // Overlay attention pulse (main → overlay)
+  onOverlayAttentionPulse: (cb: () => void) => {
+    ipcRenderer.on('daisy:overlay-attention-pulse', () => cb());
+  },
 });

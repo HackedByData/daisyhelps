@@ -67,6 +67,11 @@ export interface DaisyAPI {
   subtitleEnabledSet(enabled: boolean): void;
   onSubtitleEnabledChanged(cb: (enabled: boolean) => void): void;
   subtitleSetPassthrough(passthrough: boolean): void;
+  shareScreenRememberedGet(): Promise<boolean>;
+  shareScreenRememberedSet(enabled: boolean): void;
+  onShareScreenRememberedChanged(cb: (enabled: boolean) => void): void;
+  hideMainWindow(): void;
+  onOverlayAttentionPulse(cb: () => void): void;
 }
 
 declare global {
