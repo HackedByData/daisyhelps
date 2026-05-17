@@ -775,6 +775,25 @@ function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Dev-only: Ctrl+Shift+P fires a fake click_indicator at roughly center
+  // screen so the pointer overlay can be tested without a backend round-trip.
+  // (Ctrl+Shift+I would collide with Electron's default DevTools accelerator.)
+  // Coordinates use a 1600×900 reference frame; main.ts scales to the actual
+  // primary display, so the pointer lands near center on any resolution.
+  useEffect(() => {
+    function onKey(e) {
+      if (e.ctrlKey && e.shiftKey && (e.key === 'P' || e.key === 'p')) {
+        e.preventDefault();
+        window.daisyAPI?.showIndicator?.({
+          x: 800, y: 500, refW: 1600, refH: 900,
+          label: 'Test target',
+        });
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   // ─────────────────────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────────────────────
