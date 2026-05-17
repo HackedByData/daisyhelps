@@ -72,7 +72,7 @@ Production deploy is automatic via the Render Blueprint in `render.yaml`.
 | 3 — Multi-turn + interrupts | `current_turn_task: asyncio.Task` cancelled via `interrupt`, TTS stream `aclose()` on `CancelledError`, conversation history preserved across turns | ✅ |
 | 4 — Language + text | EN↔ES voice flip per turn (verified — `_voice_id(language)` called inside `stream_tts`), `user_text` fully bypasses STT | ✅ |
 | 5 — Deploy + docs | `render.yaml`, `test_harness/test_client.py`, finalized RUNBOOK + DECISIONS + README. Backend live at `api.daisyhelps.com` | ✅ live |
-| 6 — Desktop + landing | Electron Windows app under `desktop/`; landing site under `landing/`; CI release workflow. Landing live at `daisyhelps.com` (apex 301 → www); custom domains verified | ✅ code complete; awaiting v0.1.0 tag for first installer |
+| 6 — Desktop + landing | Electron Windows app under `desktop/` (React/JSX renderer loaded via Babel CDN through a custom `app://` protocol, real-backend wired via `useDaisyBackend` hook in `main.jsx`); landing site under `landing/`; CI release workflow. Landing live at `daisyhelps.com`. v0.1.0 was tagged but built before the wire-up — needs v0.1.1 for a working installer. See `TODO.md`. | 🟡 code on `main` is functional; public installer is stale |
 
 Five automated smokes (Phase 0–4) passed end-to-end against real Anthropic + ElevenLabs APIs. See git history for per-task commits (`phase-N:` prefix).
 
@@ -85,9 +85,10 @@ Five automated smokes (Phase 0–4) passed end-to-end against real Anthropic + E
 - **Demo script** — `docs/DEMO.md`
 - **Current state + remaining work** — `TODO.md`
 - **Original spec / plan** — `docs/superpowers/specs/2026-05-16-daisy-helps-backend-design.md` and `docs/superpowers/plans/2026-05-16-daisy-helps-backend.md`
-- **Desktop client behavior** — `desktop/src/renderer/app.ts` (WebSocket client, mic, audio playback, UI state)
-- **Desktop native bridge** — `desktop/src/main.ts` (screen capture, tray, auto-update); `desktop/src/preload.ts` (renderer-exposed API surface)
+- **Desktop renderer** — `desktop/src/renderer/main.jsx` (React/JSX, `useDaisyBackend` hook = WS + mic + audio playback + screenshot consent + interrupt + language + 5s silence cutoff + auto-listen + stuck-thinking watchdog). The old vanilla-TS renderer in `desktop/src/renderer/app.ts` is no longer loaded but kept for reference.
+- **Desktop native bridge** — `desktop/src/main.ts` (screen capture, tray, auto-update, `createOverlay()` + `createIndicator()` BrowserWindows, drag IPC); `desktop/src/preload.ts` (renderer-exposed API surface, `DaisyAPI` in `desktop/src/renderer/types.ts`)
 - **Landing page** — `landing/index.html`
+- **Pointer overlay (partial)** — see `docs/POINTER-OVERLAY-PROMPT.md` for completion handoff
 
 ## Working conventions
 
@@ -116,18 +117,24 @@ Five automated smokes (Phase 0–4) passed end-to-end against real Anthropic + E
 - **Code signing deferred at v1** — Windows users see a SmartScreen "Unknown publisher" warning. Landing page documents how to click through.
 - **Auto-update feed lives at GitHub Releases.** electron-updater reads `latest.yml` from `releases/latest/`. If a release is in "draft" state, auto-update won't see it — publish releases via the GitHub UI or rely on CI's `--publish always` to publish directly.
 - **The `landing/_redirects` file and `render.yaml`'s `routes` block both define the `/download` redirect.** Render reads `routes`; the `_redirects` file is a fallback for non-Render hosts.
+- **`ScriptProcessorNode` buffer size MUST be a power of 2** between 256 and 16384 (Web Audio API requirement). Use `2048` (≈128ms @ 16kHz). The old vanilla-TS `app.ts` had `1600` which silently crashed `createScriptProcessor` and was masked as "mic doesn't work."
+- **Electron auto-grants `media` permission** in `main.ts` `setPermissionRequestHandler`, so the Chromium permission infobar never appears. The in-app mic consent modal in `main.jsx` (`MicConsent` block, rendered when the welcome "Start talking" button is pressed) is the user-facing permission UX. The Windows OS-level mic permission is still gated by Settings → Privacy → Microphone; `NotAllowedError` from `getUserMedia` means that toggle is off.
+- **Renderer JSX is loaded via Babel CDN, not bundled.** `desktop/src/renderer/index.html` uses `<script type="text/babel" src="*.jsx">`. CSP must allow `'unsafe-eval'` (Babel runtime) AND `'unsafe-inline'` (Babel injects transpiled modules as inline scripts) AND `connect-src 'self'` (Babel XHR-fetches the .jsx files). Main process serves them via the `app://localhost/...` protocol (`main.ts` `protocol.handle`) because `file://` blocks XHR in sandboxed renderers. See `docs/DECISIONS.md` "Renderer: React/Babel/CDN" for the full rationale.
+- **Overlay window must be `resizable: false`** (and the body locked to fixed pixel dimensions). Without these, Windows Aero Snap can briefly resize the transparent window during drag, which combined with the 280%-scaled petal composition exposes more daisy through the overflow region — perceived as the icon "growing."
 
-## Pending work — what's left for v0.1.0 launch
+## Pending work — what's left for a working public install
 
 Detailed in `TODO.md`. Summary:
 
-1. **Cut v0.1.0** — `git tag v0.1.0 && git push origin v0.1.0` triggers the release workflow; CI builds `DaisyHelps-Setup.exe`, creates the GitHub Release, uploads `latest.yml`. Until this fires, `daisyhelps.com/download` 301s correctly but the destination 404s (no release exists).
-2. **Bump `backend/readiness.py` to `phase: 6, phase_name: "desktop-launch"`** — only after v0.1.0 ships.
-3. **Manual smoke of the installed app** end-to-end via `docs/DEMO.md` on a fresh Windows profile.
+1. **Cut v0.1.1** — bump `desktop/package.json` to 0.1.1, tag, push. v0.1.0 was tagged before the React renderer was wired to the real backend and before the mic buffer fix; the installer it ships launches but the mic crashes on click. v0.1.1 from current `main` is fully functional.
+2. **Resolve the ElevenLabs free-tier 401** — subscribe to ElevenLabs Starter ($5/mo) or add a fallback TTS provider. Until this is done, every turn fails at audio playback (captions still appear, error banner shows, UI resets cleanly to idle).
+3. **Complete the screen-wide pointer overlay** — main-process IPC scaffolding has landed (`createIndicator()` + `daisy:show-indicator` handler); the indicator renderer (`indicator.{html,css,ts}`) and `main.jsx` wire are still TODO. Full handoff spec for another agent in `docs/POINTER-OVERLAY-PROMPT.md`.
+4. **Bump `backend/readiness.py` to `phase: 6, phase_name: "desktop-launch"`** — after v0.1.1 ships and audio works.
+5. **Stranger test** of the installed app end-to-end on a fresh Windows profile.
 
 Both deploys are already live and auto-deploy on push to `main`:
 - **Backend** — Render `srv-d84gqc7avr4c73d3aspg` → `https://api.daisyhelps.com` (Cloudflare DNS-only CNAME)
-- **Landing** — Render `srv-d84ip8naqgkc73am5cpg` → `https://daisyhelps.com` (verified custom domains, `/download` redirect + security headers applied via REST API since MCP `create_static_site` doesn't expose `routes`/`headers`)
+- **Landing** — Render `srv-d84ip8naqgkc73am5cpg` → `https://daisyhelps.com` (verified custom domains; `/download` redirect + security headers applied via REST API since MCP `create_static_site` doesn't expose `routes`/`headers`)
 
 ## Features deferred for future additions
 
