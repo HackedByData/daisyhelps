@@ -27,8 +27,8 @@ Returns a JSON document describing what's live right now:
 {
   "service": "daisy-helps-backend",
   "version": "0.1.0",
-  "phase": 0,
-  "phase_name": "scaffold",
+  "phase": 5,
+  "phase_name": "click-indicator",
   "http": {
     "GET /healthz": "live",
     "GET /": "live",
@@ -52,7 +52,9 @@ Returns a JSON document describing what's live right now:
     "daisy_text": "stubbed",
     "audio_chunk": "stubbed",
     "audio_end": "stubbed",
-    "screenshot_request": "stubbed"
+    "screenshot_request": "stubbed",
+    "click_indicator": "stubbed",
+    "clear_indicator": "stubbed"
   }
 }
 ```
@@ -173,6 +175,41 @@ Server is asking for a screenshot. Frontend should capture and send a `screensho
 ```
 **Live from:** Phase 2.
 
+### `click_indicator`
+Pixel coordinates the frontend should highlight on the user's screen. At most one per turn, emitted after `audio_end`. The locator runs only when a screenshot was attached to the current turn AND Daisy's response asked the user to click something. Failures are silent (no message emitted, no `error` frame).
+
+**Coordinate space:** `(x, y)` are pixels in the screenshot's native space. The screenshot came from the desktop frontend (via OS screen capture); the indicator overlay should be drawn at the same pixel position on the same display surface. Scale via `(x/ref_width, y/ref_height)` if the overlay surface differs in size from the screenshot (e.g., DPI-scaled rendering or multi-monitor virtual desktops).
+
+```json
+{
+  "type": "click_indicator",
+  "x": 842,
+  "y": 537,
+  "ref_width": 1920,
+  "ref_height": 1080,
+  "label": "Join button",
+  "confidence": null
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `x`, `y` | int | Coordinates in the screenshot's native pixel space. |
+| `ref_width`, `ref_height` | int | Dimensions of the screenshot. Scale via `(x/ref_width, y/ref_height)` to map onto the user's actual screen if the overlay surface differs in size. |
+| `label` | string \| null | Short hint describing the target element (≤80 chars). Useful for debug logs and a future accessibility caption. |
+| `confidence` | number \| null | Reserved for forward compatibility; always `null` in v1. |
+
+**Live from:** Phase 5.
+
+### `clear_indicator`
+Sent as the first frame of every new turn (before `transcript`), regardless of whether the new turn will emit its own `click_indicator`. Guarantees the lifecycle "indicator clears on next user utterance." The server does not emit a time-based `clear_indicator` — the desktop frontend may choose to fade the indicator after a duration of its own choosing.
+
+```json
+{"type": "clear_indicator"}
+```
+
+**Live from:** Phase 5.
+
 ### `error`
 Something went wrong. `code` is a stable identifier; `message` is human-readable.
 ```json
@@ -213,6 +250,8 @@ server inspects session: fresh screenshot present?
 
 The "consumed" flag means the same screenshot is NEVER attached to two consecutive LLM calls. If the user keeps asking visual questions, the frontend must send a fresh screenshot.
 
+After the LLM turn finishes (`audio_end` sent), if a screenshot was consumed this turn AND Daisy's response text contains a click intent ("click", "tap", "press", "open", and Spanish equivalents), the backend makes a second Claude call against the same screenshot using the computer-use tool in "look but don't act" mode. The resulting `(x, y)` is sent as a `click_indicator` message. The locator is best-effort: any failure (timeout, refusal, missing tool_use, out-of-bounds coords) drops silently — no indicator, no `error` frame.
+
 ## Interrupt timing
 Audio stops within ~200ms of `interrupt`. The server emits `audio_end` and then `status:listening`.
 
@@ -244,4 +283,14 @@ server inspects session: fresh screenshot present?
 The "consumed" flag means the same screenshot is NEVER attached to two consecutive LLM calls. If the user keeps asking visual questions, the frontend must send a fresh screenshot.
 
 A consumed screenshot is gone — there is no "history" of screenshots in the conversation messages. Claude sees only the screenshot attached to the *current* user turn.
+
+## Desktop client notes
+
+The production frontend is a downloaded Electron desktop app. A few items worth highlighting for that integration:
+
+- **Screenshot capture:** the `screenshot` message carries a base64-encoded PNG of the user's screen (or active display, on multi-monitor systems). The desktop app sources it via `desktopCapturer.getSources({ types: ['screen'] })` and a hidden offscreen render — the user is not asked to pick a file. Width and height are whatever the OS reports (usually physical pixels on Windows, see DPI scaling note below).
+- **Coordinate space:** `click_indicator.(x, y)` are pixels in the screenshot's native space. If the desktop app captures at physical-pixel resolution (default on Windows for `desktopCapturer`) and renders the overlay on the same surface, no scaling is needed. If it renders the overlay in a logical/CSS-pixel coordinate space (Electron `BrowserWindow` default), it must divide by `window.devicePixelRatio` (or equivalently, scale `(x/ref_width, y/ref_height)` against the logical screen dimensions).
+- **Multi-monitor:** the screenshot's coordinate origin is `(0, 0)` of whatever the capture covered. If the capture was a single monitor, the overlay must be positioned on that monitor in the same coordinate origin. If a virtual desktop was captured, the overlay must account for monitor offsets from `screen.getDisplayNearestPoint(...)` or similar.
+- **WebSocket origin:** the CORS allowlist above governs HTTP responses. The Electron WebSocket client typically connects with an `Origin: file://` or a custom protocol; FastAPI does not enforce CORS on WS handshake by default, so this works without backend changes. If a future tightening adds WS origin checking, add the Electron protocol to the allowlist.
+- **No browser-only assumptions:** any reference in this doc to "the frontend" means the Electron app; legacy references to a browser-based test harness (`/test`) refer to the backend's debug page, not the production client.
 
