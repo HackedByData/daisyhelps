@@ -71,8 +71,8 @@ Production deploy is automatic via the Render Blueprint in `render.yaml`.
 | 2 — Vision | Screenshot PNG validation, 60s TTL, Sonnet routing when image attached, consumed flag prevents re-attach, proactive `screenshot_request` on visual-cue words | ✅ |
 | 3 — Multi-turn + interrupts | `current_turn_task: asyncio.Task` cancelled via `interrupt`, TTS stream `aclose()` on `CancelledError`, conversation history preserved across turns | ✅ |
 | 4 — Language + text | EN↔ES voice flip per turn (verified — `_voice_id(language)` called inside `stream_tts`), `user_text` fully bypasses STT | ✅ |
-| 5 — Deploy + docs | `render.yaml`, `test_harness/test_client.py`, finalized RUNBOOK + DECISIONS + README | Code ready; deploy pending |
-| 6 — Desktop + landing | Electron Windows app under `desktop/`; landing site under `landing/`; CI release workflow; daisyhelps.com live | ✅ |
+| 5 — Deploy + docs | `render.yaml`, `test_harness/test_client.py`, finalized RUNBOOK + DECISIONS + README. Backend live at `api.daisyhelps.com` | ✅ live |
+| 6 — Desktop + landing | Electron Windows app under `desktop/`; landing site under `landing/`; CI release workflow. Landing live at `daisyhelps.com` (apex 301 → www); custom domains verified | ✅ code complete; awaiting v0.1.0 tag for first installer |
 
 Five automated smokes (Phase 0–4) passed end-to-end against real Anthropic + ElevenLabs APIs. See git history for per-task commits (`phase-N:` prefix).
 
@@ -117,13 +117,17 @@ Five automated smokes (Phase 0–4) passed end-to-end against real Anthropic + E
 - **Auto-update feed lives at GitHub Releases.** electron-updater reads `latest.yml` from `releases/latest/`. If a release is in "draft" state, auto-update won't see it — publish releases via the GitHub UI or rely on CI's `--publish always` to publish directly.
 - **The `landing/_redirects` file and `render.yaml`'s `routes` block both define the `/download` redirect.** Render reads `routes`; the `_redirects` file is a fallback for non-Render hosts.
 
-## Pending work — 3 user-action items
+## Pending work — what's left for v0.1.0 launch
 
 Detailed in `TODO.md`. Summary:
 
-1. **Deploy to Render** — Blueprint from `render.yaml`, set the 5 secret env vars in the dashboard
-2. **DNS for `api.daisyhelps.com`** — CNAME at the registrar to the Render-supplied target
-3. **Final smoke + `readiness.py` bump to phase 5** — runs after deploy succeeds
+1. **Cut v0.1.0** — `git tag v0.1.0 && git push origin v0.1.0` triggers the release workflow; CI builds `DaisyHelps-Setup.exe`, creates the GitHub Release, uploads `latest.yml`. Until this fires, `daisyhelps.com/download` 301s correctly but the destination 404s (no release exists).
+2. **Bump `backend/readiness.py` to `phase: 6, phase_name: "desktop-launch"`** — only after v0.1.0 ships.
+3. **Manual smoke of the installed app** end-to-end via `docs/DEMO.md` on a fresh Windows profile.
+
+Both deploys are already live and auto-deploy on push to `main`:
+- **Backend** — Render `srv-d84gqc7avr4c73d3aspg` → `https://api.daisyhelps.com` (Cloudflare DNS-only CNAME)
+- **Landing** — Render `srv-d84ip8naqgkc73am5cpg` → `https://daisyhelps.com` (verified custom domains, `/download` redirect + security headers applied via REST API since MCP `create_static_site` doesn't expose `routes`/`headers`)
 
 ## Features deferred for future additions
 

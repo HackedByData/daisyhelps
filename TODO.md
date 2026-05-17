@@ -1,8 +1,8 @@
 # TODO
 
-State of the Daisy Helps repo. Phase 6 — the desktop + landing pivot — is in progress; backend Phase 5 (deployed) is complete.
+State of the Daisy Helps repo. **Phase 6 (desktop + landing) is code-complete and both services are live in production. Only the first public release remains.**
 
-**Last updated:** 2026-05-16 (Phase 6 in progress)
+**Last updated:** 2026-05-17
 
 ---
 
@@ -15,68 +15,87 @@ State of the Daisy Helps repo. Phase 6 — the desktop + landing pivot — is in
 | Phase 2 — Vision | ✅ |
 | Phase 3 — Multi-turn + interrupts | ✅ |
 | Phase 4 — Language toggle + text fallback | ✅ |
-| Phase 5 — Backend deploy + click-indicator | ✅ |
-| **Phase 6 — Desktop app + landing page** | 🚧 in progress |
+| Phase 5 — Backend deploy + click-indicator | ✅ live at `api.daisyhelps.com` |
+| Phase 6 — Desktop app + landing page | ✅ code complete; landing live at `daisyhelps.com` |
+| Public release (v0.1.0) | ⏳ pending — see "What's left" below |
 
-`backend/readiness.py` will bump to `phase: 6, phase_name: "desktop-launch"` after the first public release (v0.1.0).
+`backend/readiness.py` is still on `phase: 5, phase_name: "click-indicator"`. It bumps to `phase: 6, phase_name: "desktop-launch"` after v0.1.0 is cut.
 
-**Tests:** `pytest -q` — 29 unit tests on the backend. `cd desktop && npm test` — vitest on the audio utilities.
-
----
-
-## Phase 6 punch list
-
-Following the plan at `docs/superpowers/plans/2026-05-16-daisy-helps-desktop.md`:
-
-### Code
-
-- [ ] Task 1: Scaffold `desktop/` Electron + TypeScript project
-- [ ] Task 2: Wire-message TypeScript types
-- [ ] Task 3: Renderer UI shell (HTML + CSS)
-- [ ] Task 4: PCM encode/decode utilities (TDD)
-- [ ] Task 5: Renderer app — WebSocket + mic + audio playback + UI wiring
-- [ ] Task 6: Native screen capture via `desktopCapturer`
-- [ ] Task 7: System tray + minimize-to-tray
-- [ ] Task 8: Auto-update wiring (electron-updater)
-- [ ] Task 9: Build pipeline (electron-builder Windows NSIS)
-- [ ] Task 10: GitHub Actions release workflow on `v*` tags
-- [ ] Task 11: GitHub Actions PR CI for `desktop/`
-- [ ] Task 12: Landing page (`landing/index.html` + assets)
-- [ ] Task 13: Render Static Site + daisyhelps.com DNS
-
-### Docs
-
-- [ ] Task 14: `README.md`
-- [ ] Task 15: `CLAUDE.md`
-- [ ] Task 16: `TODO.md` (this file)
-- [ ] Task 17: `docs/ARCHITECTURE.md`
-- [ ] Task 18: `docs/RUNBOOK.md`
-- [ ] Task 19: `docs/DEMO.md`
-- [ ] Task 20: `docs/DECISIONS.md`
-- [ ] Task 21: `docs/API.md`
-
-### Release
-
-- [ ] Task 22: Cut v0.1.0, verify daisyhelps.com download works end-to-end, bump `readiness.py` to phase 6
+**Tests:** `pytest -q` — 29 unit tests on the backend (all green). `cd desktop && npm test` — vitest on the audio utilities.
 
 ---
 
-## User-action items (require dashboard / registrar access)
+## Live production state (as of 2026-05-17)
 
-1. **GitHub Releases** — make sure the repo is configured so the `GITHUB_TOKEN` in CI has write access (default for `pull_request` → `push` workflows from the repo itself).
-2. **Render dashboard** — after `render.yaml` is updated (Task 13), re-sync the Blueprint to create the `daisyhelps-landing` static service. Add `daisyhelps.com` and `www.daisyhelps.com` as custom domains.
-3. **DNS** — at the daisyhelps.com registrar, add the Render-supplied ALIAS/CNAME records.
-4. **Designer pass on icons** — `desktop/build/icon.ico` and `desktop/build/tray-icon.png` are flat-color placeholders. Replace with branded versions before any marketing push.
+| URL | What it serves | Backed by |
+|---|---|---|
+| `https://api.daisyhelps.com` | FastAPI + WebSocket backend (`/ws/{session_id}`, `/healthz`, `/api/status`, `/test`) | Render web service `srv-d84gqc7avr4c73d3aspg` (commit `37974bd`) |
+| `https://daisyhelps.com` | Apex → 301 → `www.daisyhelps.com` (Render-managed redirect) | Render static site `srv-d84ip8naqgkc73am5cpg` |
+| `https://www.daisyhelps.com` | Landing page (`landing/index.html`) | same static site |
+| `https://daisyhelps.com/download` | 301 → `…/releases/latest/download/DaisyHelps-Setup.exe` | static-site route `rdr-d84ismgjo89c73atlb70` |
+
+Both services auto-deploy on push to `main`. Custom domains for the static site (`daisyhelps.com`, `www.daisyhelps.com`) are added and **verified** in Render. Cloudflare zone `daisyhelps.com` holds the DNS records.
+
+Security headers (`X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`) are applied to the static site via the Render API (`hdr-d84isofavr4c73d4juo0`, `hdr-d84isod7vvec73fadmhg`).
+
+**Caveat:** `daisyhelps.com/download` currently 404s **at the destination** because no GitHub Release exists yet. The redirect resolves correctly; the file it points at doesn't exist until v0.1.0 ships.
 
 ---
 
-## Backwards-compatible deferred items (carry forward from Phase 5)
+## What's left (Phase 6 → public launch)
 
-- **Persona / prompt iteration** — run the demo through the installed desktop app 5+ times; tighten `backend/prompts.py`.
+### 1. Cut v0.1.0 — the one thing standing between us and a working `/download`
+
+```powershell
+# from repo root
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+This fires `.github/workflows/release.yml` on `windows-latest`, which:
+- builds the NSIS installer (`DaisyHelps-Setup.exe`, no version suffix — fixed in `afb24d0`)
+- creates a GitHub Release `v0.1.0`
+- uploads `DaisyHelps-Setup.exe` + `latest.yml` (electron-updater feed)
+
+After ~5 minutes CI finishes, `https://daisyhelps.com/download` will serve a real installer.
+
+### 2. Bump `backend/readiness.py` to phase 6
+
+After v0.1.0 ships, edit `backend/readiness.py`:
+
+```python
+PHASE = 6
+PHASE_NAME = "desktop-launch"
+```
+
+Commit, push — auto-deploys to `api.daisyhelps.com`.
+
+### 3. Manual smoke of the installed app
+
+Run through `docs/DEMO.md` end-to-end on a fresh Windows profile:
+- download from `daisyhelps.com/download` → install → SmartScreen click-through → launch
+- "Help me join a Zoom call with my doctor"
+- "Show Daisy my screen" → native picker → screenshot reaches backend
+- voice reply plays; interrupting mid-speech cancels TTS
+- language toggle flips voice EN ↔ ES
+- close → tray icon remains → re-open from tray
+
+---
+
+## Carry-forward — deferred items (non-blocking)
+
+- **Persona / prompt iteration** — run the demo through the installed desktop app 5+ times; tighten `backend/prompts.py` for "lists multiple steps", jargon, recovery.
 - **AudioWorklet migration** in `desktop/src/renderer/app.ts` (currently uses deprecated `ScriptProcessorNode`, same as the test harness).
-- **Migrate `datetime.utcnow()` → `datetime.now(timezone.utc)`** in `backend/session.py`.
-- **macOS / Linux installers** — see `CLAUDE.md` deferred-features table.
-- **EV code-signing cert** for the Windows installer — see `CLAUDE.md`.
+- **ONNX Silero VAD** — replace `silero-vad` + torch with `onnxruntime` to cut ~250MB from the backend deploy footprint.
+- **Migrate `datetime.utcnow()` → `datetime.now(timezone.utc)`** in `backend/session.py` (two call sites).
+- **EV code-signing cert** for the Windows installer (~$300/yr) — skips SmartScreen entirely. Slot in `desktop/electron-builder.yml` `win.signtoolOptions`.
+- **macOS / Linux installers** — electron-builder config exists for Windows; macOS needs Apple Dev cert + notarization, Linux just needs `target: AppImage` + a CI matrix expansion.
+- **Designer pass on icons** — `desktop/build/icon.ico` and `desktop/build/tray-icon.png` are flat-color placeholders.
+- **Retry on TTS / LLM transient errors** in `backend/main.py:_run_turn` — currently emits `turn_failed` once and stops.
+- **Auth / rate limiting** — anyone with the WS URL can connect; middleware before `websocket.accept()`.
+- **Session persistence** — `SessionStore` is the abstraction; swap to Redis-backed impl.
+
+Full deferred-features inventory lives in `CLAUDE.md`.
 
 ---
 
@@ -93,3 +112,5 @@ Following the plan at `docs/superpowers/plans/2026-05-16-daisy-helps-desktop.md`
 | The demo script | `docs/DEMO.md` |
 | Feature readiness flags | `backend/readiness.py` (or `GET /api/status`) |
 | Daisy's voice (system prompt) | `backend/prompts.py` |
+| Phase 6 session retro | `PHASE-6-COMPLETION-2026-05-16.md` |
+| Desktop pivot handoff notes | `HANDOFF-desktop-pivot.md` |
