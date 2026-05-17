@@ -1,5 +1,6 @@
 import { app, BrowserWindow, desktopCapturer, ipcMain, Menu, net, protocol, screen, session, Tray } from 'electron';
 import { autoUpdater } from 'electron-updater';
+import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -15,6 +16,42 @@ let subtitleWindow: BrowserWindow | null = null;
 let indicatorClearTimer: NodeJS.Timeout | null = null;
 let tray: Tray | null = null;
 let quittingForReal = false;
+
+interface AppSettings {
+  subtitles_enabled: boolean;
+}
+const DEFAULT_SETTINGS: AppSettings = { subtitles_enabled: true };
+let appSettings: AppSettings = { ...DEFAULT_SETTINGS };
+
+function settingsPath(): string {
+  return path.join(app.getPath('userData'), 'settings.json');
+}
+
+function loadSettings(): void {
+  try {
+    const raw = fs.readFileSync(settingsPath(), 'utf-8');
+    const parsed = JSON.parse(raw);
+    appSettings = {
+      subtitles_enabled: typeof parsed.subtitles_enabled === 'boolean'
+        ? parsed.subtitles_enabled
+        : DEFAULT_SETTINGS.subtitles_enabled,
+    };
+  } catch (err: unknown) {
+    // ENOENT on first launch is expected. Anything else: warn and use defaults.
+    if (!(err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT')) {
+      console.warn('[settings] failed to read settings.json, using defaults:', err);
+    }
+    appSettings = { ...DEFAULT_SETTINGS };
+  }
+}
+
+function saveSettings(): void {
+  try {
+    fs.writeFileSync(settingsPath(), JSON.stringify(appSettings, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('[settings] failed to write settings.json:', err);
+  }
+}
 
 function createOverlay(): void {
   const primary = screen.getPrimaryDisplay();
@@ -193,6 +230,8 @@ function setupAutoUpdate(): void {
 }
 
 app.whenReady().then(() => {
+  loadSettings();
+
   // Grant mic permission to the renderer once at startup
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
     if (permission === 'media') return callback(true);
