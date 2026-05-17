@@ -16,6 +16,7 @@ A FastAPI server holds a long-lived WebSocket per user. Each connection drives a
 | TTS | `backend/pipeline/tts.py` | `stream_tts()` async generator (ElevenLabs, sentence-buffered) |
 | Config | `backend/config.py` | pydantic-settings-loaded env vars |
 | Logging | `backend/logging_setup.py` | loguru configuration |
+| Locator | `backend/pipeline/locator.py` | Best-effort computer-use call to identify the click target; returns `ClickTarget(x, y, ref_width, ref_height, label)` or `None` |
 
 ## Data flow
 ```
@@ -45,4 +46,6 @@ The session holds at most one pending screenshot: `(bytes, datetime)`. TTL is 60
    - If the pending screenshot is fresh, attach it as an `image` content block on the current user message AND route to `claude-sonnet-4-6`. Mark consumed (clear from session).
    - Otherwise, if the user's text mentions visual cues, emit `screenshot_request`; route to Haiku.
 3. The screenshot is never re-attached after it's consumed.
+
+3. After `audio_end`, if `image_bytes` was used this turn AND Daisy's response matched the click-intent regex, the server schedules a `locate_click_target(image_bytes, full_response, language)` call (Claude Sonnet + `computer_20250124` tool). On a valid `left_click` tool_use, the server emits `click_indicator`. The call is best-effort and degrades silently. The indicator is cleared on the *next* turn via `clear_indicator` emitted as the first frame of `_run_turn`. The frontend (a desktop Electron client) draws the highlight on the same physical screen the user shared via `desktopCapturer`; coordinates are in screenshot-native pixel space.
 
