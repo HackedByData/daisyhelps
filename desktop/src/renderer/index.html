@@ -1,157 +1,541 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Daisy Helps</title>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' wss://api.daisyhelps.com ws://localhost:8000; media-src 'self' blob:; img-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+<meta charset="utf-8" />
+<title>Daisy Helps — prototype</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://unpkg.com 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src wss://api.daisyhelps.com ws://localhost:8000; img-src 'self' data: blob:; media-src blob:;" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap" rel="stylesheet" />
+
+<style>
+  /* ──────────────── Design tokens ──────────────── */
+  :root {
+    /* Brand */
+    --daisy-orange: #ED8B33;
+    --daisy-orange-deep: #C56A1B;
+    --daisy-green: #2D8659;
+    --daisy-green-deep: #1F6342;
+    --daisy-yellow: #F4C24A;
+
+    /* Warm neutrals */
+    --cream-0: #FBF7EE;   /* page bg */
+    --cream-1: #F4ECD8;   /* panels */
+    --cream-2: #E8DCC0;   /* edges */
+    --ink-0:  #1F1A12;    /* primary text — AAA on cream */
+    --ink-1:  #4A4034;    /* secondary text */
+    --ink-2:  #7A6E5C;    /* tertiary text */
+
+    /* Feedback */
+    --listen: #2D8659;
+    --thinking: #B86F1F;
+    --speak: #ED8B33;
+    --alert: #B43E2A;
+
+    /* Geometry */
+    --r-card: 28px;
+    --r-button: 999px;
+    --base: 22px;             /* tweakable */
+    --scale: 1;                /* tweakable */
+    --pad: clamp(24px, 3vw, 56px);
+  }
+
+  /* ──────────────── Base ──────────────── */
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--cream-0); color: var(--ink-0); }
+  html { font-size: calc(var(--base) * var(--scale)); }
+  body {
+    font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, sans-serif;
+    font-size: 1rem;
+    line-height: 1.45;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection { background: var(--daisy-yellow); color: var(--ink-0); }
+
+  h1, h2, h3 { font-family: 'Fraunces', Georgia, serif; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+  button { font: inherit; }
+
+  /* Visible focus, always */
+  :focus-visible {
+    outline: 3px solid var(--daisy-green);
+    outline-offset: 4px;
+    border-radius: 8px;
+  }
+  /* Quiet scrollbar inside app */
+  body { overflow-x: hidden; }
+
+  /* App shell */
+  #root { min-height: 100vh; display: flex; flex-direction: column; }
+
+  /* ──────────────── Buttons ──────────────── */
+  .btn {
+    --bg: var(--ink-0);
+    --fg: var(--cream-0);
+    --bd: var(--ink-0);
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 14px;
+    min-height: 72px;
+    padding: 16px 36px;
+    border-radius: var(--r-button);
+    border: 3px solid var(--bd);
+    background: var(--bg);
+    color: var(--fg);
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    transition: transform .15s ease, box-shadow .25s ease, background .2s ease, color .2s ease;
+    box-shadow: 0 4px 0 rgba(31,26,18,.18);
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(31,26,18,.18); }
+
+  .btn--primary { --bg: var(--daisy-orange); --fg: #fff; --bd: var(--daisy-orange-deep); }
+  .btn--go      { --bg: var(--daisy-green); --fg: #fff; --bd: var(--daisy-green-deep); }
+  .btn--stop    { --bg: #fff; --fg: var(--ink-0); --bd: var(--ink-0); }
+  .btn--ghost   { --bg: transparent; --fg: var(--ink-0); --bd: var(--ink-0); box-shadow: none; }
+  .btn--quiet   { --bg: var(--cream-1); --fg: var(--ink-0); --bd: var(--cream-2); }
+  .btn--danger  { --bg: #fff; --fg: var(--alert); --bd: var(--alert); }
+
+  .btn--xl { min-height: 110px; padding: 22px 48px; font-size: 1.6rem; border-width: 4px; box-shadow: 0 6px 0 rgba(31,26,18,.18); }
+  .btn--xl:active { box-shadow: 0 2px 0 rgba(31,26,18,.18); }
+
+  .btn--icon-only { min-width: 64px; padding: 16px; }
+
+  /* ──────────────── Cards / surfaces ──────────────── */
+  .card {
+    background: #fff;
+    border: 2px solid var(--cream-2);
+    border-radius: var(--r-card);
+    padding: clamp(20px, 2.4vw, 36px);
+  }
+  .card--tinted { background: var(--cream-1); }
+
+  /* ──────────────── Layout shell ──────────────── */
+  .shell {
+    flex: 1;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    padding: clamp(16px, 2vw, 28px);
+    gap: clamp(16px, 1.8vw, 24px);
+  }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px;
+  }
+  .topbar__brand { display: flex; align-items: center; gap: 14px; }
+  .topbar__brand img { height: var(--logo-size, 298px); width: auto; display: block; transform: translateY(var(--logo-offset-y, 0px)); }
+  .topbar__brand .tag { font-size: .85rem; color: var(--ink-2); margin-left: 4px; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 700; transform: translate(var(--help-offset-x, 0px), var(--help-offset-y, 0px)); }
+
+  .topbar__right { display: flex; align-items: center; gap: 12px; transform: translateY(var(--logo-offset-y, 0px)); }
+
+  /* Language segmented control */
+  .lang {
+    display: inline-flex; padding: 6px; gap: 4px;
+    background: #fff; border: 2px solid var(--cream-2); border-radius: 999px;
+  }
+  .lang button {
+    appearance: none; border: 0; background: transparent;
+    padding: 12px 22px; min-height: 56px;
+    font-size: 1rem; font-weight: 700; color: var(--ink-1);
+    border-radius: 999px; cursor: pointer;
+  }
+  .lang button[aria-pressed="true"] { background: var(--ink-0); color: var(--cream-0); }
+
+  /* Icon settings */
+  .icon-btn {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: #fff; border: 2px solid var(--cream-2); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--ink-0);
+  }
+
+  /* ──────────────── Conversation: state hero + captions ──────────────── */
+  .stage {
+    display: grid;
+    grid-template-columns: minmax(360px, 0.9fr) minmax(0, 1.4fr);
+    gap: clamp(20px, 2.4vw, 40px);
+    align-items: stretch;
+    min-height: 0;
+  }
+  @media (max-width: 900px) { .stage { grid-template-columns: 1fr; } }
+
+  .hero {
+    position: relative;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 28px;
+    padding: clamp(24px, 3vw, 48px);
+    background: linear-gradient(180deg, #FFFDF7 0%, var(--cream-1) 100%);
+    border: 2px solid var(--cream-2);
+    border-radius: var(--r-card);
+    text-align: center;
+    overflow: visible;
+  }
+  .hero__label {
+    font-size: 0.95rem; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ink-2); font-weight: 700;
+    position: relative; z-index: 2;
+  }
+  .hero__status {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(1.8rem, 3.2vw, 2.6rem);
+    color: var(--ink-0);
+    line-height: 1.15;
+    max-width: 18ch;
+    position: relative; z-index: 2;
+  }
+
+  /* The daisy mark */
+  .mark {
+    width: clamp(200px, 24vw, 300px);
+    aspect-ratio: 1;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    flex: none;
+  }
+  .mark svg { width: 100%; height: 100%; overflow: visible; display: block; }
+  .mark__petal {
+    transform-origin: 50% 50%;
+    /* 1.2s so petals drift back smoothly when leaving thinking state */
+    transition: transform 1.2s cubic-bezier(.4,0,.2,1);
+  }
+  .mark__core { transition: transform .6s cubic-bezier(.4,0,.2,1); transform-origin: 50% 50%; }
+
+  /* State: idle — slow breathing */
+  .mark[data-state="idle"] { animation: breathe 4.4s ease-in-out infinite; }
+  @keyframes breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+
+  /* State: listening — petals open + concentric rings */
+  .mark[data-state="listening"] .mark__petal { transform: scale(var(--p, 1.08)); }
+  .ring {
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 3px solid var(--daisy-green);
+    opacity: 0; pointer-events: none;
+  }
+  .mark[data-state="listening"] .ring { animation: ripple 2.2s ease-out infinite; }
+  .mark[data-state="listening"] .ring:nth-child(2) { animation-delay: .7s; }
+  .mark[data-state="listening"] .ring:nth-child(3) { animation-delay: 1.4s; }
+  @keyframes ripple {
+    0%   { transform: scale(.72); opacity: .55; }
+    100% { transform: scale(1.45); opacity: 0; }
+  }
+
+  /* State: thinking — petals orbit continuously; transition:transform brings them home on state exit */
+  .mark[data-state="thinking"] .mark__flower { animation: none; }
+  .mark[data-state="thinking"] .mark__core { animation: pulse 2.4s ease-in-out infinite; }
+  .mark[data-state="thinking"] .mark__petal:nth-child(1) { animation: think1  8.0s ease-in-out infinite; }
+  .mark[data-state="thinking"] .mark__petal:nth-child(2) { animation: think2  9.2s ease-in-out infinite; }
+  .mark[data-state="thinking"] .mark__petal:nth-child(3) { animation: think3  7.5s ease-in-out infinite; }
+  .mark[data-state="thinking"] .mark__petal:nth-child(4) { animation: think4  8.8s ease-in-out infinite; }
+  .mark[data-state="thinking"] .mark__petal:nth-child(5) { animation: think5  9.6s ease-in-out infinite; }
+  .mark[data-state="thinking"] .mark__petal:nth-child(6) { animation: think6  7.2s ease-in-out infinite; }
+
+  @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+
+  /* Circular orbits — each petal traces a clean circle at its own radius/speed/direction */
+  @keyframes think1 {
+    0%   { transform: translate(   0px,-105px) rotate(  0deg); }
+    25%  { transform: translate( 105px,   0px) rotate( 90deg); }
+    50%  { transform: translate(   0px, 105px) rotate(180deg); }
+    75%  { transform: translate(-105px,   0px) rotate(270deg); }
+    100% { transform: translate(   0px,-105px) rotate(360deg); }
+  }
+  @keyframes think2 {
+    0%   { transform: translate(   0px,-125px) rotate(  0deg); }
+    25%  { transform: translate(-125px,   0px) rotate(-90deg); }
+    50%  { transform: translate(   0px, 125px) rotate(-180deg); }
+    75%  { transform: translate( 125px,   0px) rotate(-270deg); }
+    100% { transform: translate(   0px,-125px) rotate(-360deg); }
+  }
+  @keyframes think3 {
+    0%   { transform: translate(  90px,   0px) rotate(  0deg); }
+    25%  { transform: translate(   0px,  90px) rotate( 90deg); }
+    50%  { transform: translate( -90px,   0px) rotate(180deg); }
+    75%  { transform: translate(   0px, -90px) rotate(270deg); }
+    100% { transform: translate(  90px,   0px) rotate(360deg); }
+  }
+  @keyframes think4 {
+    0%   { transform: translate( 115px,   0px) rotate(  0deg); }
+    25%  { transform: translate(   0px,-115px) rotate(-90deg); }
+    50%  { transform: translate(-115px,   0px) rotate(-180deg); }
+    75%  { transform: translate(   0px, 115px) rotate(-270deg); }
+    100% { transform: translate( 115px,   0px) rotate(-360deg); }
+  }
+  @keyframes think5 {
+    0%   { transform: translate( -95px,   0px) rotate(  0deg); }
+    25%  { transform: translate(   0px, -95px) rotate( 90deg); }
+    50%  { transform: translate(  95px,   0px) rotate(180deg); }
+    75%  { transform: translate(   0px,  95px) rotate(270deg); }
+    100% { transform: translate( -95px,   0px) rotate(360deg); }
+  }
+  @keyframes think6 {
+    0%   { transform: translate(-135px,   0px) rotate(  0deg); }
+    25%  { transform: translate(   0px, 135px) rotate(-90deg); }
+    50%  { transform: translate( 135px,   0px) rotate(-180deg); }
+    75%  { transform: translate(   0px,-135px) rotate(-270deg); }
+    100% { transform: translate(-135px,   0px) rotate(-360deg); }
+  }
+
+  /* State: speaking — petals + center gently chorus */
+  .mark[data-state="speaking"] .mark__petal { animation: chorus 1.6s ease-in-out infinite; }
+  .mark[data-state="speaking"] .mark__petal:nth-child(odd) { animation-delay: .2s; }
+  .mark[data-state="speaking"] .mark__core,
+  .mark[data-state="speaking"] .mark__flower > img:last-child { animation: chorus 1.6s ease-in-out infinite; }
+  @keyframes chorus { 0%,100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+
+  /* Captions */
+  .caption-wrap {
+    display: flex; flex-direction: column; gap: clamp(14px, 1.6vw, 22px);
+    min-height: 0;
+    position: relative; z-index: 2;
+  }
+
+  .caption {
+    background: #fff;
+    border: 2px solid var(--cream-2);
+    border-radius: var(--r-card);
+    padding: clamp(28px, 3vw, 44px);
+    flex: 1; min-height: 0;
+    display: flex; flex-direction: column;
+    position: relative;
+  }
+  .caption__who {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-size: 0.85rem; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-2); font-weight: 700; margin-bottom: 14px;
+  }
+  .caption__who::before {
+    content: ""; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--daisy-orange);
+  }
+  .caption__text {
+    font-size: clamp(1.45rem, 2.1vw, 2.0rem);
+    line-height: 1.45;
+    color: var(--ink-0);
+    text-wrap: pretty;
+    font-weight: 400;
+  }
+  .caption__text .cursor {
+    display: inline-block; width: 0.5ch; height: 1.1em;
+    background: var(--daisy-orange);
+    margin-left: 4px; vertical-align: -0.15em;
+    animation: caret 1.05s steps(2,end) infinite;
+  }
+  @keyframes caret { 50% { opacity: 0; } }
+
+  .you-said {
+    background: var(--cream-1);
+    border: 2px solid var(--cream-2);
+    border-radius: var(--r-card);
+    padding: clamp(20px, 2.2vw, 28px);
+    color: var(--ink-1);
+  }
+  .you-said__label {
+    font-size: 0.8rem; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-2); font-weight: 700; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .you-said__label::before {
+    content: ""; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--daisy-green);
+  }
+  .you-said__text { font-size: 1.15rem; font-style: italic; }
+
+  /* Actions row */
+  .actions {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .actions__primary { flex: 1; display: flex; justify-content: center; }
+  .actions__secondary { display: flex; gap: 10px; align-items: center; }
+
+  /* Mic-level bars */
+  .mic-bars {
+    display: inline-flex; gap: 4px; align-items: flex-end; height: 28px;
+  }
+  .mic-bars span {
+    width: 5px; background: currentColor; border-radius: 3px;
+    animation: bar 1.1s ease-in-out infinite;
+  }
+  .mic-bars span:nth-child(1) { height: 30%; animation-delay: .0s; }
+  .mic-bars span:nth-child(2) { height: 70%; animation-delay: .12s; }
+  .mic-bars span:nth-child(3) { height: 100%; animation-delay: .24s; }
+  .mic-bars span:nth-child(4) { height: 60%; animation-delay: .36s; }
+  .mic-bars span:nth-child(5) { height: 40%; animation-delay: .48s; }
+  @keyframes bar { 0%,100% { transform: scaleY(.45); } 50% { transform: scaleY(1.0); } }
+
+  /* Status dot */
+  .status-dot {
+    display: inline-flex; align-items: center; gap: 12px;
+    font-size: 1.05rem; font-weight: 700; color: var(--ink-0);
+    background: #fff;
+    border: 2px solid var(--cream-2);
+    padding: 12px 22px; border-radius: 999px;
+  }
+  .status-dot::before {
+    content: ""; width: 14px; height: 14px; border-radius: 50%;
+    background: var(--ink-2);
+  }
+  .status-dot[data-state="idle"]::before { background: var(--ink-2); }
+  .status-dot[data-state="listening"]::before { background: var(--listen); box-shadow: 0 0 0 0 rgba(45,134,89,.5); animation: glow 1.4s ease-out infinite; }
+  .status-dot[data-state="thinking"]::before { background: var(--thinking); animation: blink 1.6s ease-in-out infinite; }
+  .status-dot[data-state="speaking"]::before { background: var(--speak); animation: glow 1.2s ease-out infinite; }
+  @keyframes glow { 0% { box-shadow: 0 0 0 0 rgba(237,139,51,.55); } 100% { box-shadow: 0 0 0 14px rgba(237,139,51,0); } }
+  @keyframes blink { 50% { opacity: .35; } }
+
+  /* ──────────────── Welcome screen ──────────────── */
+  .welcome {
+    max-width: 1180px; margin: 0 auto; width: 100%;
+    display: grid; grid-template-columns: 1.15fr 1fr; gap: clamp(28px, 4vw, 80px);
+    align-items: center;
+    padding: clamp(20px, 4vw, 56px) clamp(16px, 4vw, 40px);
+    flex: 1;
+  }
+  .welcome > div:first-child { min-width: 0; }
+  @media (max-width: 880px) { .welcome { grid-template-columns: 1fr; text-align: center; } .welcome .mark { margin: 0 auto; } }
+
+  .welcome h1 {
+    font-size: clamp(2.4rem, 4.4vw, 4rem);
+    line-height: 1.05;
+    margin: 0 0 28px 0;
+  }
+  .welcome p.lede {
+    font-size: clamp(1.15rem, 1.6vw, 1.35rem);
+    color: var(--ink-1); margin: 0 0 36px 0;
+    max-width: 30ch;
+    line-height: 1.5;
+  }
+  @media (max-width: 880px) { .welcome p.lede { margin-inline: auto; } }
+
+  .perm-note {
+    display: inline-flex; align-items: center; gap: 12px;
+    margin-top: 18px;
+    color: var(--ink-2);
+    font-size: 0.95rem;
+  }
+
+  /* ──────────────── Modal ──────────────── */
+  .modal-scrim {
+    position: fixed; inset: 0; background: rgba(31,26,18,.55);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px; z-index: 100;
+    animation: fade .3s ease;
+  }
+  @keyframes fade { from { opacity: 0; } }
+  .modal {
+    background: var(--cream-0);
+    border: 2px solid var(--cream-2);
+    border-radius: 32px;
+    max-width: 760px; width: 100%;
+    padding: clamp(28px, 4vw, 48px);
+    box-shadow: 0 30px 80px rgba(0,0,0,.35);
+  }
+  .modal h2 {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(1.8rem, 3vw, 2.4rem);
+    margin-bottom: 18px;
+  }
+  .modal__reason {
+    background: #fff;
+    border: 2px solid var(--cream-2);
+    border-radius: 20px;
+    padding: clamp(20px, 2.4vw, 28px);
+    font-size: 1.25rem; color: var(--ink-0);
+    margin-bottom: 28px;
+    line-height: 1.5;
+  }
+  .modal__why {
+    font-size: 1rem; color: var(--ink-2); margin-bottom: 32px;
+    display: flex; gap: 12px; align-items: flex-start;
+  }
+  .modal__actions { display: flex; flex-direction: column; gap: 14px; }
+  @media (min-width: 640px) { .modal__actions { flex-direction: row-reverse; justify-content: flex-start; } }
+
+  /* ──────────────── Error / banner ──────────────── */
+  .banner {
+    display: flex; align-items: center; gap: 16px;
+    padding: 16px 24px;
+    background: #FFF4E5;
+    border: 2px solid #F4C24A;
+    border-radius: 20px;
+    color: #5A3D0F;
+  }
+  .banner--alert { background: #FCEAE5; border-color: #E58A75; color: #6E1B0C; }
+  .banner strong { font-weight: 700; }
+  .banner__icon {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: #F4C24A; color: #fff; flex: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 700;
+  }
+  .banner--alert .banner__icon { background: #B43E2A; }
+
+  /* ──────────────── Goodbye screen ──────────────── */
+  .goodbye {
+    text-align: center;
+    max-width: 740px; margin: 0 auto;
+    padding: clamp(40px, 6vw, 100px) 24px;
+  }
+  .goodbye h1 {
+    font-size: clamp(2.4rem, 4.5vw, 4rem);
+    margin-bottom: 20px;
+  }
+  .goodbye p { font-size: 1.3rem; color: var(--ink-1); margin: 0 auto 40px; max-width: 28ch; }
+
+  /* ──────────────── Settings sheet ──────────────── */
+  .sheet {
+    position: fixed; right: 24px; top: 100px; z-index: 90;
+    background: #fff; border: 2px solid var(--cream-2);
+    border-radius: 24px; width: 360px;
+    padding: 24px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.18);
+  }
+  .sheet h3 { font-family: 'Fraunces', serif; font-size: 1.4rem; margin-bottom: 16px; }
+  .sheet__row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 14px 0; border-top: 1px solid var(--cream-2);
+  }
+  .sheet__row:first-of-type { border-top: 0; }
+  .sheet__label { font-size: 1rem; font-weight: 700; }
+  .sheet__steppers { display: inline-flex; gap: 8px; }
+  .stepper {
+    width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--cream-2);
+    background: #fff; font-size: 1.4rem; font-weight: 700; cursor: pointer;
+  }
+
+  /* Screen reader only */
+  .sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+  /* Tweaks panel scoping (so AAA & font scaling don't mess it up) */
+  .twk-panel { font-size: 11.5px !important; }
+
+  /* Respect reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    .mark, .mark svg, .mark__petal, .mark__core, .ring,
+    .mic-bars span, .status-dot::before, .caption__text .cursor {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+</style>
+
+<!-- React + Babel (pinned) -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 </head>
 <body>
-<div id="root">
-  <div class="shell">
+<div id="root"></div>
 
-    <!-- ── Shared topbar ── -->
-    <header class="topbar" role="banner">
-      <div class="topbar__brand">
-        <img src="assets/daisy_logo__1_-removebg-preview.png" alt="Daisy" />
-        <span class="tag">helps</span>
-      </div>
-      <div class="topbar__right">
-        <div class="lang" role="group" aria-label="Language / Idioma">
-          <button id="lang-en" aria-pressed="true">English</button>
-          <button id="lang-es" aria-pressed="false">Español</button>
-        </div>
-        <button class="icon-btn hidden" id="settings-btn" aria-label="Settings">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h0a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
-          </svg>
-        </button>
-      </div>
-    </header>
-
-    <!-- ── Welcome screen ── -->
-    <main class="welcome" id="screen-welcome" role="main">
-      <div>
-        <h1 id="welcome-title">Hello. I'm Daisy.</h1>
-        <p class="lede" id="welcome-lede">I help you do things on your computer, one calm step at a time. Just talk to me out loud.</p>
-        <button class="btn btn--primary btn--xl" id="start-btn">
-          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="9" y="3" width="6" height="12" rx="3" />
-            <path d="M5 11a7 7 0 0 0 14 0" />
-            <path d="M12 18v3" />
-          </svg>
-          <span id="start-label">Start talking to Daisy</span>
-        </button>
-        <div class="perm-note">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" /><path d="M12 8v5" /><circle cx="12" cy="16" r="0.5" fill="currentColor" />
-          </svg>
-          <span id="perm-note">I'll ask to use your microphone so I can hear you.</span>
-        </div>
-      </div>
-      <div id="welcome-mark"></div>
-    </main>
-
-    <!-- ── Conversation screen ── -->
-    <main class="stage hidden" id="screen-stage" role="main">
-      <section class="hero" aria-live="polite" aria-atomic="false">
-        <div class="hero__label" id="hero-label"></div>
-        <div id="conv-mark"></div>
-        <div class="hero__status" id="hero-status"></div>
-        <div id="mic-bars-wrap" class="hidden" style="color:var(--daisy-green-deep)">
-          <span class="mic-bars" aria-hidden="true">
-            <span></span><span></span><span></span><span></span><span></span>
-          </span>
-        </div>
-      </section>
-      <section class="caption-wrap">
-        <div id="mic-denied-banner" class="banner banner--alert hidden" role="status">
-          <span class="banner__icon" aria-hidden="true">!</span>
-          <div><strong id="err-mic-title"></strong> <span id="err-mic-body"></span></div>
-        </div>
-        <div class="caption" aria-live="polite" aria-atomic="false">
-          <div class="caption__who" id="daisy-who">Daisy</div>
-          <div class="caption__text" id="daisy-text">—</div>
-        </div>
-        <div class="you-said hidden" id="you-said-wrap">
-          <div class="you-said__label" id="you-said-label">You said</div>
-          <div class="you-said__text" id="you-said-text"></div>
-        </div>
-      </section>
-    </main>
-
-    <!-- ── Goodbye screen ── -->
-    <main class="goodbye hidden" id="screen-goodbye" role="main">
-      <div id="goodbye-mark"></div>
-      <h1 id="goodbye-title">Thanks for visiting with Daisy.</h1>
-      <p id="goodbye-sub">Come back any time. I'm always happy to help.</p>
-      <button class="btn btn--primary btn--xl" id="again-btn">Start a new visit</button>
-    </main>
-
-    <!-- ── Bottom slot: tagline (welcome) or actions bar (conversation) ── -->
-    <div class="tagline" id="welcome-tagline">Patient help for your computer</div>
-
-    <footer class="actions hidden" id="screen-actions" role="contentinfo">
-      <div class="actions__secondary">
-        <div class="status-dot" id="status-dot" data-state="idle"></div>
-      </div>
-      <div class="actions__primary" id="action-primary"></div>
-      <div class="actions__secondary" aria-hidden="true" style="visibility:hidden">
-        <div class="status-dot">spacer</div>
-      </div>
-    </footer>
-
-  </div><!-- /.shell -->
-</div><!-- /#root -->
-
-<!-- ── Settings sheet (overlay) ── -->
-<aside class="sheet hidden" id="settings-sheet" role="dialog" aria-modal="false" aria-labelledby="settings-title">
-  <h3 id="settings-title">Settings</h3>
-  <div class="sheet__row">
-    <div class="sheet__label" id="settings-text-size-label">Text size</div>
-    <div class="sheet__steppers">
-      <button class="stepper" id="font-smaller" aria-label="Smaller">A−</button>
-      <button class="stepper" id="font-larger" aria-label="Larger">A+</button>
-    </div>
-  </div>
-  <div class="sheet__row">
-    <div class="sheet__label" id="settings-audio-label">Test the sound</div>
-    <button class="btn btn--quiet" id="audio-test-btn" style="min-height:56px">Play sound</button>
-  </div>
-  <div class="sheet__row">
-    <div class="sheet__label" id="settings-end-label">End the visit</div>
-    <button class="btn btn--danger" id="end-btn" style="min-height:56px">End now</button>
-  </div>
-  <div class="sheet__row" style="justify-content:flex-end">
-    <button class="btn btn--ghost" id="settings-close-btn" style="min-height:56px">Close</button>
-  </div>
-</aside>
-
-<!-- ── Screenshot consent modal ── -->
-<div class="modal-scrim hidden" id="consent-modal" role="dialog" aria-modal="true" aria-labelledby="consent-title">
-  <div class="modal">
-    <h2 id="consent-title">May I see your screen?</h2>
-    <div class="modal__reason" id="consent-reason"></div>
-    <div class="modal__why">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="flex:none;color:var(--ink-2)">
-        <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
-      </svg>
-      <span id="consent-why">Your screen is only sent to Daisy for this one moment. It is not saved.</span>
-    </div>
-    <div class="modal__actions">
-      <button class="btn btn--primary btn--xl" id="consent-yes-btn" style="flex:1">Show Daisy my screen</button>
-      <button class="btn btn--ghost btn--xl" id="consent-no-btn" style="flex:1">Not right now</button>
-    </div>
-  </div>
-</div>
-
-<!-- ── Auto-update notice ── -->
-<div class="update-notice hidden" id="update-badge"></div>
-
-<script type="module" src="app.js"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="daisy-mark.jsx"></script>
+<script type="text/babel" src="screens.jsx"></script>
+<script type="text/babel" src="main.jsx"></script>
 </body>
 </html>

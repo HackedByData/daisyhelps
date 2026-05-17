@@ -1,6 +1,12 @@
-import { app, BrowserWindow, desktopCapturer, ipcMain, Menu, screen, session, Tray } from 'electron';
-import path from 'node:path';
+import { app, BrowserWindow, desktopCapturer, ipcMain, Menu, net, protocol, screen, session, Tray } from 'electron';
 import { autoUpdater } from 'electron-updater';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+// Must be called before the app ready event
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+]);
 
 let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
@@ -44,7 +50,7 @@ function createWindow(): void {
       sandbox: true,
     },
   });
-  mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  mainWindow.loadURL('app://localhost/index.html');
   mainWindow.on('close', (e) => {
     if (!quittingForReal) {
       e.preventDefault();
@@ -127,6 +133,14 @@ app.whenReady().then(() => {
   ipcMain.on('daisy:overlay-hide', () => overlayWindow?.hide());
   ipcMain.on('daisy:overlay-state', (_e, state: string) => {
     overlayWindow?.webContents.send('daisy:overlay-state', state);
+  });
+
+  // Serve renderer files via app:// so Babel's XHR (used for src="*.jsx") works
+  // under the sandboxed renderer — file:// blocks XHR in sandboxed contexts.
+  protocol.handle('app', (request) => {
+    const urlPath = new URL(request.url).pathname;
+    const filePath = path.join(__dirname, 'renderer', urlPath);
+    return net.fetch(pathToFileURL(filePath).href);
   });
 
   createTray();
