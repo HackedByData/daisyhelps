@@ -20,8 +20,12 @@ let quittingForReal = false;
 
 interface AppSettings {
   subtitles_enabled: boolean;
+  share_screen_remembered: boolean;
 }
-const DEFAULT_SETTINGS: AppSettings = { subtitles_enabled: true };
+const DEFAULT_SETTINGS: AppSettings = {
+  subtitles_enabled: true,
+  share_screen_remembered: false,
+};
 let appSettings: AppSettings = { ...DEFAULT_SETTINGS };
 
 function settingsPath(): string {
@@ -36,6 +40,9 @@ function loadSettings(): void {
       subtitles_enabled: typeof parsed.subtitles_enabled === 'boolean'
         ? parsed.subtitles_enabled
         : DEFAULT_SETTINGS.subtitles_enabled,
+      share_screen_remembered: typeof parsed.share_screen_remembered === 'boolean'
+        ? parsed.share_screen_remembered
+        : DEFAULT_SETTINGS.share_screen_remembered,
     };
   } catch (err: unknown) {
     // ENOENT on first launch is expected. Anything else: warn and use defaults.
@@ -66,6 +73,12 @@ function rebuildTrayMenu(): void {
       checked: appSettings.subtitles_enabled,
       click: (item) => setSubtitlesEnabled(item.checked),
     },
+    {
+      label: 'Sharing my screen',
+      type: 'checkbox',
+      checked: appSettings.share_screen_remembered,
+      click: (item) => setShareScreenRemembered(item.checked),
+    },
     { type: 'separator' },
     { label: 'Quit', click: () => { quittingForReal = true; app.quit(); } },
   ]);
@@ -87,6 +100,17 @@ function setSubtitlesEnabled(enabled: boolean): void {
     w.webContents.send('daisy:subtitle-enabled-changed', enabled);
   }
   // Rebuild the tray menu so its checkbox reflects the new state.
+  rebuildTrayMenu();
+}
+
+function setShareScreenRemembered(enabled: boolean): void {
+  if (appSettings.share_screen_remembered === enabled) return;
+  appSettings.share_screen_remembered = enabled;
+  saveSettings();
+  // Broadcast to all renderers so tray + settings sheet + main app stay in sync.
+  for (const w of BrowserWindow.getAllWindows()) {
+    w.webContents.send('daisy:share-screen-remembered-changed', enabled);
+  }
   rebuildTrayMenu();
 }
 
@@ -388,6 +412,11 @@ app.whenReady().then(() => {
   ipcMain.handle('daisy:subtitle-enabled-get', () => appSettings.subtitles_enabled);
   ipcMain.on('daisy:subtitle-enabled-set', (_e, enabled: boolean) => {
     setSubtitlesEnabled(!!enabled);
+  });
+
+  ipcMain.handle('daisy:share-screen-remembered-get', () => appSettings.share_screen_remembered);
+  ipcMain.on('daisy:share-screen-remembered-set', (_e, enabled: boolean) => {
+    setShareScreenRemembered(!!enabled);
   });
 
   // Subtitle passthrough toggle. Renderer flips it off while the cursor is
