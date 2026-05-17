@@ -6,7 +6,7 @@
   "author": "Daisy Helps",
   "main": "dist/main.js",
   "scripts": {
-    "build:main": "tsc -p tsconfig.json",
+    "build:main": "tsc -p tsconfig.json && copyfiles -u 1 \"build/tray-icon.png\" dist",
     "build:renderer": "tsc -p tsconfig.renderer.json && copyfiles -u 2 \"src/renderer/**/*.{html,css}\" dist/renderer && copyfiles -u 1 \"src/screen-picker.html\" dist",
     "build": "npm run build:main && npm run build:renderer",
     "start": "npm run build && electron .",

@@ -31,7 +31,7 @@ function createWindow(): void {
 }
 
 function createTray(): void {
-  tray = new Tray(path.join(__dirname, '..', 'src', 'assets', 'tray-icon.png'));
+  tray = new Tray(path.join(__dirname, 'tray-icon.png'));
   tray.setToolTip('Daisy Helps');
   const menu = Menu.buildFromTemplate([
     { label: 'Show Daisy', click: () => { mainWindow?.show(); mainWindow?.focus(); } },

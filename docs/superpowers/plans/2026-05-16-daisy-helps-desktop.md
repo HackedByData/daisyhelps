@@ -52,7 +52,7 @@ release/
   "author": "Daisy Helps",
   "main": "dist/main.js",
   "scripts": {
-    "build:main": "tsc -p tsconfig.json",
+    "build:main": "tsc -p tsconfig.json && copyfiles -u 1 \"build/tray-icon.png\" dist",
     "build:renderer": "tsc -p tsconfig.renderer.json && copyfiles -u 2 \"src/renderer/**/*.{html,css}\" dist/renderer",
     "build": "npm run build:main && npm run build:renderer",
     "start": "npm run build && electron .",
@@ -1029,7 +1029,7 @@ let quittingForReal = false;
 Add a `createTray()` function before `app.whenReady()`:
 ```typescript
 function createTray(): void {
-  tray = new Tray(path.join(__dirname, '..', 'build', 'tray-icon.png'));
+  tray = new Tray(path.join(__dirname, 'tray-icon.png'));
   tray.setToolTip('Daisy Helps');
   const menu = Menu.buildFromTemplate([
     { label: 'Show Daisy', click: () => { mainWindow?.show(); mainWindow?.focus(); } },
