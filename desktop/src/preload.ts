@@ -51,4 +51,11 @@ contextBridge.exposeInMainWorld('daisyAPI', {
   onClearSubtitle: (cb: () => void) => {
     ipcRenderer.on('daisy:subtitle-clear', () => cb());
   },
+
+  // Subtitle enable/disable
+  subtitleEnabledGet: () => ipcRenderer.invoke('daisy:subtitle-enabled-get') as Promise<boolean>,
+  subtitleEnabledSet: (enabled: boolean) => ipcRenderer.send('daisy:subtitle-enabled-set', enabled),
+  onSubtitleEnabledChanged: (cb: (enabled: boolean) => void) => {
+    ipcRenderer.on('daisy:subtitle-enabled-changed', (_e, enabled) => cb(enabled));
+  },
 });

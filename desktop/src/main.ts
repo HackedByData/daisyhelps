@@ -53,6 +53,24 @@ function saveSettings(): void {
   }
 }
 
+function rebuildTrayMenu(): void {
+  // Real implementation in Task 7. Stub so setSubtitlesEnabled is self-contained.
+}
+
+function setSubtitlesEnabled(enabled: boolean): void {
+  if (appSettings.subtitles_enabled === enabled) return;
+  appSettings.subtitles_enabled = enabled;
+  saveSettings();
+  // Hide the pill immediately when disabling mid-turn.
+  if (!enabled) subtitleWindow?.hide();
+  // Broadcast to all renderers so tray + settings sheet stay in sync.
+  for (const w of BrowserWindow.getAllWindows()) {
+    w.webContents.send('daisy:subtitle-enabled-changed', enabled);
+  }
+  // Rebuild the tray menu so its checkbox reflects the new state.
+  rebuildTrayMenu();
+}
+
 function createOverlay(): void {
   const primary = screen.getPrimaryDisplay();
   const { width } = primary.workAreaSize;
@@ -333,6 +351,7 @@ app.whenReady().then(() => {
   // Subtitle IPC (main renderer → main → subtitle renderer).
   ipcMain.on('daisy:subtitle-show', (_e, text: string) => {
     if (!subtitleWindow) return;
+    if (!appSettings.subtitles_enabled) return;  // gate: honor the user's toggle
     if (!subtitleWindow.isVisible()) subtitleWindow.showInactive();
     subtitleWindow.webContents.send('daisy:subtitle-show', text);
   });
@@ -342,6 +361,12 @@ app.whenReady().then(() => {
     // Hide after the fade transition (~260ms) — keeps the pill from
     // visually "popping" out when text-clearing completes mid-fade.
     setTimeout(() => subtitleWindow?.hide(), 280);
+  });
+
+  // Subtitle enable/disable state + cross-window broadcast.
+  ipcMain.handle('daisy:subtitle-enabled-get', () => appSettings.subtitles_enabled);
+  ipcMain.on('daisy:subtitle-enabled-set', (_e, enabled: boolean) => {
+    setSubtitlesEnabled(!!enabled);
   });
 
   // Serve renderer files via app:// so Babel's XHR (used for src="*.jsx") works

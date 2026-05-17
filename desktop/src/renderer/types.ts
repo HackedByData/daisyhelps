@@ -63,6 +63,9 @@ export interface DaisyAPI {
   subtitleClear(): void;
   onShowSubtitle(cb: (text: string) => void): void;
   onClearSubtitle(cb: () => void): void;
+  subtitleEnabledGet(): Promise<boolean>;
+  subtitleEnabledSet(enabled: boolean): void;
+  onSubtitleEnabledChanged(cb: (enabled: boolean) => void): void;
 }
 
 declare global {
