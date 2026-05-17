@@ -165,6 +165,15 @@ function useDaisyBackend() {
     return () => clearTimeout(t);
   }, [state]);
 
+  // Mirror errors to the subtitle pill when in screen-share mode so the
+  // user sees them even if the big window is hidden. The pill auto-clears
+  // after 5s on its own; we don't need to clear it from here.
+  useEffect(() => {
+    if (!errorMsg) return;
+    if (!shareScreenRememberedRef.current) return;
+    window.daisyAPI?.subtitleErrorShow?.(errorMsg);
+  }, [errorMsg]);
+
   // Connect + auto-reconnect (3s backoff on close)
   useEffect(() => {
     let closed = false;
