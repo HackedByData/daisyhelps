@@ -26,6 +26,23 @@ html, body {
 #pill:not([hidden]) { opacity: 1; }
 #pill.pill--fading { opacity: 0; }
 
+/* Error variant — red-tinted background + small cream dot on the left.
+   Distinguishes a transient error from Daisy's normal speech caption. */
+#pill.pill--error {
+  background: rgba(180, 62, 42, 0.92);  /* matches --alert in styles.css */
+}
+.pill__dot {
+  flex: 0 0 auto;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #FBF7EE;
+  margin-right: 10px;
+  display: none;
+}
+#pill.pill--error .pill__dot {
+  display: inline-block;
+}
+
 .pill__clip {
   flex: 1 1 auto;
   overflow: hidden;

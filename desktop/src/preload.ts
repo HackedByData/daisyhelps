@@ -45,6 +45,10 @@ contextBridge.exposeInMainWorld('daisyAPI', {
   // Subtitle (main renderer → main → subtitle renderer)
   subtitleShow:  (text: string) => ipcRenderer.send('daisy:subtitle-show', text),
   subtitleClear: () => ipcRenderer.send('daisy:subtitle-clear'),
+  subtitleErrorShow: (text: string) => ipcRenderer.send('daisy:subtitle-error-show', text),
+  onShowSubtitleError: (cb: (text: string) => void) => {
+    ipcRenderer.on('daisy:subtitle-error-show', (_e, text) => cb(text));
+  },
   onShowSubtitle: (cb: (text: string) => void) => {
     ipcRenderer.on('daisy:subtitle-show', (_e, text) => cb(text));
   },

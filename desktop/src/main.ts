@@ -408,6 +408,13 @@ app.whenReady().then(() => {
     }, 280);
   });
 
+  ipcMain.on('daisy:subtitle-error-show', (_e, text: string) => {
+    if (!subtitleWindow) return;
+    if (!appSettings.subtitles_enabled) return;  // honor the user's toggle
+    if (!subtitleWindow.isVisible()) subtitleWindow.showInactive();
+    subtitleWindow.webContents.send('daisy:subtitle-error-show', text);
+  });
+
   // Subtitle enable/disable state + cross-window broadcast.
   ipcMain.handle('daisy:subtitle-enabled-get', () => appSettings.subtitles_enabled);
   ipcMain.on('daisy:subtitle-enabled-set', (_e, enabled: boolean) => {

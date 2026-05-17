@@ -61,6 +61,8 @@ export interface DaisyAPI {
   indicatorSetPassthrough(passthrough: boolean): void;
   subtitleShow(text: string): void;
   subtitleClear(): void;
+  subtitleErrorShow(text: string): void;
+  onShowSubtitleError(cb: (text: string) => void): void;
   onShowSubtitle(cb: (text: string) => void): void;
   onClearSubtitle(cb: () => void): void;
   subtitleEnabledGet(): Promise<boolean>;

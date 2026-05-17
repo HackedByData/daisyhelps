@@ -34,6 +34,7 @@ function fadeOut(): void {
   hideTimer = window.setTimeout(() => {
     pill.hidden = true;
     pill.classList.remove('pill--fading');
+    pill.classList.remove('pill--error');
     text.textContent = '';
     text.style.transform = 'none';
     hideTimer = null;
@@ -69,4 +70,21 @@ closeBtn?.addEventListener('click', () => {
   // round-trip through main + the broadcast back finishes.
   fadeOut();
   setSubtitlePassthrough(true);
+});
+
+// Error variant — same pill, red tint, auto-clears after 5 seconds.
+// Replaces any current subtitle content (Daisy speech) for the duration.
+let errorAutoClearTimer: number | null = null;
+window.daisyAPI?.onShowSubtitleError?.((errText: string) => {
+  if (errorAutoClearTimer !== null) {
+    window.clearTimeout(errorAutoClearTimer);
+    errorAutoClearTimer = null;
+  }
+  pill.classList.add('pill--error');
+  render(errText);
+  errorAutoClearTimer = window.setTimeout(() => {
+    pill.classList.remove('pill--error');
+    fadeOut();
+    errorAutoClearTimer = null;
+  }, 5000);
 });
