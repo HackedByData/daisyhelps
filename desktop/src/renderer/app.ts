@@ -263,7 +263,7 @@ const updateGoodbyeMark = createDaisyMark(document.getElementById('goodbye-mark'
 
 // ─── Language ────────────────────────────────────────────────────────────────
 
-function c(): typeof COPY.en { return COPY[language]; }
+function c() { return COPY[language]; }
 
 function updateAllText(): void {
   const t = c();
