@@ -24,6 +24,7 @@ html, body {
   transition: opacity 240ms ease;
 }
 #pill:not([hidden]) { opacity: 1; }
+#pill.pill--fading { opacity: 0; }
 
 .pill__clip {
   flex: 1 1 auto;

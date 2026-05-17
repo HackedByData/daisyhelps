@@ -16,6 +16,7 @@ function render(content: string): void {
   }
   text.textContent = content;
   pill.hidden = false;
+  pill.classList.remove('pill--fading');
   // Measure on the next animation frame so layout has settled. Without rAF,
   // scrollWidth on the just-mutated span occasionally lags by one frame.
   requestAnimationFrame(() => {
@@ -25,12 +26,14 @@ function render(content: string): void {
 }
 
 function fadeOut(): void {
-  // Set opacity via the [hidden] toggle (pill has `opacity: 0` while hidden,
-  // `opacity: 1` otherwise — see subtitle.css). The 240ms transition runs;
-  // we wait for it before clearing the text so the fade is uninterrupted.
-  pill.hidden = true;
+  // Trigger the CSS opacity transition via a class (not via [hidden], because
+  // the UA stylesheet maps [hidden] to display: none, which would remove the
+  // element from the render tree before the 240ms opacity transition could run).
+  pill.classList.add('pill--fading');
   if (hideTimer !== null) window.clearTimeout(hideTimer);
   hideTimer = window.setTimeout(() => {
+    pill.hidden = true;
+    pill.classList.remove('pill--fading');
     text.textContent = '';
     text.style.transform = 'none';
     hideTimer = null;

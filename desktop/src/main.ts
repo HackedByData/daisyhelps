@@ -14,6 +14,7 @@ let overlayWindow: BrowserWindow | null = null;
 let indicatorWindow: BrowserWindow | null = null;
 let subtitleWindow: BrowserWindow | null = null;
 let indicatorClearTimer: NodeJS.Timeout | null = null;
+let subtitleHideTimer: NodeJS.Timeout | null = null;
 let tray: Tray | null = null;
 let quittingForReal = false;
 
@@ -75,8 +76,12 @@ function setSubtitlesEnabled(enabled: boolean): void {
   if (appSettings.subtitles_enabled === enabled) return;
   appSettings.subtitles_enabled = enabled;
   saveSettings();
-  // Hide the pill immediately when disabling mid-turn.
-  if (!enabled) subtitleWindow?.hide();
+  // Hide the pill immediately when disabling mid-turn; cancel any pending
+  // fade-out timer so the window doesn't reappear briefly via a late hide().
+  if (!enabled) {
+    if (subtitleHideTimer) { clearTimeout(subtitleHideTimer); subtitleHideTimer = null; }
+    subtitleWindow?.hide();
+  }
   // Broadcast to all renderers so tray + settings sheet stay in sync.
   for (const w of BrowserWindow.getAllWindows()) {
     w.webContents.send('daisy:subtitle-enabled-changed', enabled);
@@ -363,15 +368,20 @@ app.whenReady().then(() => {
   ipcMain.on('daisy:subtitle-show', (_e, text: string) => {
     if (!subtitleWindow) return;
     if (!appSettings.subtitles_enabled) return;  // gate: honor the user's toggle
+    // Cancel any pending hide from a prior clear — a fast new turn within
+    // the 280ms fade window must not get hidden mid-stream.
+    if (subtitleHideTimer) { clearTimeout(subtitleHideTimer); subtitleHideTimer = null; }
     if (!subtitleWindow.isVisible()) subtitleWindow.showInactive();
     subtitleWindow.webContents.send('daisy:subtitle-show', text);
   });
   ipcMain.on('daisy:subtitle-clear', () => {
     if (!subtitleWindow) return;
     subtitleWindow.webContents.send('daisy:subtitle-clear');
-    // Hide after the fade transition (~260ms) — keeps the pill from
-    // visually "popping" out when text-clearing completes mid-fade.
-    setTimeout(() => subtitleWindow?.hide(), 280);
+    if (subtitleHideTimer) clearTimeout(subtitleHideTimer);
+    subtitleHideTimer = setTimeout(() => {
+      subtitleWindow?.hide();
+      subtitleHideTimer = null;
+    }, 280);
   });
 
   // Subtitle enable/disable state + cross-window broadcast.

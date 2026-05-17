@@ -256,6 +256,14 @@ function useDaisyBackend() {
             // animation forever when a turn fails downstream (e.g. TTS 401).
             setState('idle');
             setDaisyStreaming(false);
+            // Cancel the subtitle linger and clear immediately — a failed
+            // turn won't fire audio_end, so without this the pill would
+            // stay visible with the last partial until the next turn.
+            if (subtitleLingerRef.current) {
+              clearTimeout(subtitleLingerRef.current);
+              subtitleLingerRef.current = null;
+            }
+            window.daisyAPI?.subtitleClear?.();
             break;
           default:
             break;
