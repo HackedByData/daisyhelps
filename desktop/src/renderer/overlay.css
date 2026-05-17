@@ -1,0 +1,122 @@
+/* Transparent click-through overlay — shows the Daisy flower mark in a corner */
+*, *::before, *::after { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  width: 220px; height: 220px;
+  background: transparent;
+  overflow: hidden;
+}
+
+/* ── Mark container ── */
+.mark {
+  width: 220px; height: 220px;
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Petal images — same canvas coordinate system as main app, conversation-screen scale */
+.mark__petal, .mark__core, .mark__flower > img:last-child {
+  position: absolute;
+  width: 280%;   /* scale 2.8 × 100% of mark */
+  height: 280%;
+  object-fit: contain;
+  pointer-events: none;
+}
+.mark__petal {
+  left: -68%; top: -80%;
+  transform-origin: 13% 25.5%;
+  transition: transform 1.2s cubic-bezier(.4,0,.2,1);
+}
+.mark__core, .mark__flower > img:last-child {
+  left: -67%; top: -80%;
+  transform-origin: 13% 25.5%;
+}
+.mark__core { z-index: 1; }
+.mark__flower > img:last-child { z-index: 2; }
+.mark__flower {
+  position: absolute; inset: 0;
+  transform-origin: 13% 25.5%;
+}
+
+/* Rings */
+.ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  border: 3px solid #2D8659; opacity: 0; pointer-events: none;
+}
+
+/* ── State animations (identical to main app) ── */
+
+/* idle */
+.mark[data-state="idle"] { animation: breathe 4.4s ease-in-out infinite; }
+@keyframes breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+
+/* listening */
+.mark[data-state="listening"] .mark__petal { transform: scale(1.08); }
+.mark[data-state="listening"] .ring { animation: ripple 2.2s ease-out infinite; }
+.mark[data-state="listening"] .ring:nth-child(2) { animation-delay: .7s; }
+.mark[data-state="listening"] .ring:nth-child(3) { animation-delay: 1.4s; }
+@keyframes ripple { 0% { transform: scale(.72); opacity: .55; } 100% { transform: scale(1.45); opacity: 0; } }
+
+/* thinking */
+.mark[data-state="thinking"] .mark__flower { animation: none; }
+.mark[data-state="thinking"] .mark__core { animation: pulse 2.4s ease-in-out infinite; }
+.mark[data-state="thinking"] .mark__petal:nth-child(1) { animation: think1 8.0s ease-in-out infinite; }
+.mark[data-state="thinking"] .mark__petal:nth-child(2) { animation: think2 9.2s ease-in-out infinite; }
+.mark[data-state="thinking"] .mark__petal:nth-child(3) { animation: think3 7.5s ease-in-out infinite; }
+.mark[data-state="thinking"] .mark__petal:nth-child(4) { animation: think4 8.8s ease-in-out infinite; }
+.mark[data-state="thinking"] .mark__petal:nth-child(5) { animation: think5 9.6s ease-in-out infinite; }
+.mark[data-state="thinking"] .mark__petal:nth-child(6) { animation: think6 7.2s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+@keyframes think1 {
+  0%   { transform: translate(   0px,-105px) rotate(  0deg); }
+  25%  { transform: translate( 105px,   0px) rotate( 90deg); }
+  50%  { transform: translate(   0px, 105px) rotate(180deg); }
+  75%  { transform: translate(-105px,   0px) rotate(270deg); }
+  100% { transform: translate(   0px,-105px) rotate(360deg); }
+}
+@keyframes think2 {
+  0%   { transform: translate(   0px,-125px) rotate(  0deg); }
+  25%  { transform: translate(-125px,   0px) rotate(-90deg); }
+  50%  { transform: translate(   0px, 125px) rotate(-180deg); }
+  75%  { transform: translate( 125px,   0px) rotate(-270deg); }
+  100% { transform: translate(   0px,-125px) rotate(-360deg); }
+}
+@keyframes think3 {
+  0%   { transform: translate(  90px,   0px) rotate(  0deg); }
+  25%  { transform: translate(   0px,  90px) rotate( 90deg); }
+  50%  { transform: translate( -90px,   0px) rotate(180deg); }
+  75%  { transform: translate(   0px, -90px) rotate(270deg); }
+  100% { transform: translate(  90px,   0px) rotate(360deg); }
+}
+@keyframes think4 {
+  0%   { transform: translate( 115px,   0px) rotate(  0deg); }
+  25%  { transform: translate(   0px,-115px) rotate(-90deg); }
+  50%  { transform: translate(-115px,   0px) rotate(-180deg); }
+  75%  { transform: translate(   0px, 115px) rotate(-270deg); }
+  100% { transform: translate( 115px,   0px) rotate(-360deg); }
+}
+@keyframes think5 {
+  0%   { transform: translate( -95px,   0px) rotate(  0deg); }
+  25%  { transform: translate(   0px, -95px) rotate( 90deg); }
+  50%  { transform: translate(  95px,   0px) rotate(180deg); }
+  75%  { transform: translate(   0px,  95px) rotate(270deg); }
+  100% { transform: translate( -95px,   0px) rotate(360deg); }
+}
+@keyframes think6 {
+  0%   { transform: translate(-135px,   0px) rotate(  0deg); }
+  25%  { transform: translate(   0px, 135px) rotate(-90deg); }
+  50%  { transform: translate( 135px,   0px) rotate(-180deg); }
+  75%  { transform: translate(   0px,-135px) rotate(-270deg); }
+  100% { transform: translate(-135px,   0px) rotate(-360deg); }
+}
+
+/* speaking */
+.mark[data-state="speaking"] .mark__petal { animation: chorus 1.6s ease-in-out infinite; }
+.mark[data-state="speaking"] .mark__petal:nth-child(odd) { animation-delay: .2s; }
+.mark[data-state="speaking"] .mark__core,
+.mark[data-state="speaking"] .mark__flower > img:last-child { animation: chorus 1.6s ease-in-out infinite; }
+@keyframes chorus { 0%,100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .mark, .mark__petal, .mark__core, .ring { animation: none !important; transition: none !important; }
+}

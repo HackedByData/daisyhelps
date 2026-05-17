@@ -1,46 +1,157 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Daisy Helps</title>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' wss://api.daisyhelps.com ws://localhost:8000; media-src 'self' blob:; img-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline';" />
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <header class="topbar">
-      <div class="brand">Daisy Helps</div>
-      <div class="lang-toggle" id="lang-toggle">
-        <button class="lang-btn active" data-lang="en">EN</button>
-        <button class="lang-btn" data-lang="es">ES</button>
+<head>
+  <meta charset="utf-8" />
+  <title>Daisy Helps</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' wss://api.daisyhelps.com ws://localhost:8000; media-src 'self' blob:; img-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div id="root">
+  <div class="shell">
+
+    <!-- ── Shared topbar ── -->
+    <header class="topbar" role="banner">
+      <div class="topbar__brand">
+        <img src="assets/daisy_logo__1_-removebg-preview.png" alt="Daisy" />
+        <span class="tag">helps</span>
+      </div>
+      <div class="topbar__right">
+        <div class="lang" role="group" aria-label="Language / Idioma">
+          <button id="lang-en" aria-pressed="true">English</button>
+          <button id="lang-es" aria-pressed="false">Español</button>
+        </div>
+        <button class="icon-btn hidden" id="settings-btn" aria-label="Settings">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h0a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
+          </svg>
+        </button>
       </div>
     </header>
 
-    <main class="stage">
-      <div class="status-pill" id="status-pill">Connecting…</div>
-
-      <div class="captions" id="captions" aria-live="polite"></div>
-
-      <div class="actions">
-        <button id="mic-btn" class="big-btn mic" disabled>
-          <span class="icon">🎙</span>
-          <span class="label">Start talking</span>
+    <!-- ── Welcome screen ── -->
+    <main class="welcome" id="screen-welcome" role="main">
+      <div>
+        <h1 id="welcome-title">Hello. I'm Daisy.</h1>
+        <p class="lede" id="welcome-lede">I help you do things on your computer, one calm step at a time. Just talk to me out loud.</p>
+        <button class="btn btn--primary btn--xl" id="start-btn">
+          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="3" width="6" height="12" rx="3" />
+            <path d="M5 11a7 7 0 0 0 14 0" />
+            <path d="M12 18v3" />
+          </svg>
+          <span id="start-label">Start talking to Daisy</span>
         </button>
-        <button id="screen-btn" class="big-btn screen" disabled>
-          <span class="icon">🖥</span>
-          <span class="label">Show Daisy my screen</span>
-        </button>
-        <button id="stop-btn" class="big-btn stop" disabled>
-          <span class="icon">✋</span>
-          <span class="label">Stop Daisy</span>
-        </button>
+        <div class="perm-note">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" /><path d="M12 8v5" /><circle cx="12" cy="16" r="0.5" fill="currentColor" />
+          </svg>
+          <span id="perm-note">I'll ask to use your microphone so I can hear you.</span>
+        </div>
       </div>
+      <div id="welcome-mark"></div>
     </main>
 
-    <footer class="footer">
-      <span id="update-badge" class="hidden">Update ready — restart to install</span>
-      <span class="version">v0.1.0</span>
+    <!-- ── Conversation screen ── -->
+    <main class="stage hidden" id="screen-stage" role="main">
+      <section class="hero" aria-live="polite" aria-atomic="false">
+        <div class="hero__label" id="hero-label"></div>
+        <div id="conv-mark"></div>
+        <div class="hero__status" id="hero-status"></div>
+        <div id="mic-bars-wrap" class="hidden" style="color:var(--daisy-green-deep)">
+          <span class="mic-bars" aria-hidden="true">
+            <span></span><span></span><span></span><span></span><span></span>
+          </span>
+        </div>
+      </section>
+      <section class="caption-wrap">
+        <div id="mic-denied-banner" class="banner banner--alert hidden" role="status">
+          <span class="banner__icon" aria-hidden="true">!</span>
+          <div><strong id="err-mic-title"></strong> <span id="err-mic-body"></span></div>
+        </div>
+        <div class="caption" aria-live="polite" aria-atomic="false">
+          <div class="caption__who" id="daisy-who">Daisy</div>
+          <div class="caption__text" id="daisy-text">—</div>
+        </div>
+        <div class="you-said hidden" id="you-said-wrap">
+          <div class="you-said__label" id="you-said-label">You said</div>
+          <div class="you-said__text" id="you-said-text"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ── Goodbye screen ── -->
+    <main class="goodbye hidden" id="screen-goodbye" role="main">
+      <div id="goodbye-mark"></div>
+      <h1 id="goodbye-title">Thanks for visiting with Daisy.</h1>
+      <p id="goodbye-sub">Come back any time. I'm always happy to help.</p>
+      <button class="btn btn--primary btn--xl" id="again-btn">Start a new visit</button>
+    </main>
+
+    <!-- ── Bottom slot: tagline (welcome) or actions bar (conversation) ── -->
+    <div class="tagline" id="welcome-tagline">Patient help for your computer</div>
+
+    <footer class="actions hidden" id="screen-actions" role="contentinfo">
+      <div class="actions__secondary">
+        <div class="status-dot" id="status-dot" data-state="idle"></div>
+      </div>
+      <div class="actions__primary" id="action-primary"></div>
+      <div class="actions__secondary" aria-hidden="true" style="visibility:hidden">
+        <div class="status-dot">spacer</div>
+      </div>
     </footer>
 
-    <script type="module" src="app.js"></script>
-  </body>
+  </div><!-- /.shell -->
+</div><!-- /#root -->
+
+<!-- ── Settings sheet (overlay) ── -->
+<aside class="sheet hidden" id="settings-sheet" role="dialog" aria-modal="false" aria-labelledby="settings-title">
+  <h3 id="settings-title">Settings</h3>
+  <div class="sheet__row">
+    <div class="sheet__label" id="settings-text-size-label">Text size</div>
+    <div class="sheet__steppers">
+      <button class="stepper" id="font-smaller" aria-label="Smaller">A−</button>
+      <button class="stepper" id="font-larger" aria-label="Larger">A+</button>
+    </div>
+  </div>
+  <div class="sheet__row">
+    <div class="sheet__label" id="settings-audio-label">Test the sound</div>
+    <button class="btn btn--quiet" id="audio-test-btn" style="min-height:56px">Play sound</button>
+  </div>
+  <div class="sheet__row">
+    <div class="sheet__label" id="settings-end-label">End the visit</div>
+    <button class="btn btn--danger" id="end-btn" style="min-height:56px">End now</button>
+  </div>
+  <div class="sheet__row" style="justify-content:flex-end">
+    <button class="btn btn--ghost" id="settings-close-btn" style="min-height:56px">Close</button>
+  </div>
+</aside>
+
+<!-- ── Screenshot consent modal ── -->
+<div class="modal-scrim hidden" id="consent-modal" role="dialog" aria-modal="true" aria-labelledby="consent-title">
+  <div class="modal">
+    <h2 id="consent-title">May I see your screen?</h2>
+    <div class="modal__reason" id="consent-reason"></div>
+    <div class="modal__why">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="flex:none;color:var(--ink-2)">
+        <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      </svg>
+      <span id="consent-why">Your screen is only sent to Daisy for this one moment. It is not saved.</span>
+    </div>
+    <div class="modal__actions">
+      <button class="btn btn--primary btn--xl" id="consent-yes-btn" style="flex:1">Show Daisy my screen</button>
+      <button class="btn btn--ghost btn--xl" id="consent-no-btn" style="flex:1">Not right now</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Auto-update notice ── -->
+<div class="update-notice hidden" id="update-badge"></div>
+
+<script type="module" src="app.js"></script>
+</body>
 </html>

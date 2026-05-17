@@ -1,63 +1,86 @@
-* { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
+/* ── Design tokens (mirrors desktop app) ── */
+:root {
+  --daisy-orange:      #ED8B33;
+  --daisy-orange-deep: #C56A1B;
+  --daisy-green:       #2D8659;
+  --cream-0: #FBF7EE;
+  --cream-1: #F4ECD8;
+  --cream-2: #E8DCC0;
+  --ink-0:   #1F1A12;
+  --ink-1:   #4A4034;
+  --ink-2:   #7A6E5C;
+}
 
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
 body {
-  font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
-  background: #fdf7ec;
-  color: #2d2114;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, sans-serif;
+  background: var(--cream-0);
+  color: var(--ink-0);
   font-size: 18px;
   line-height: 1.6;
 }
+h1, h2 { font-family: 'Fraunces', Georgia, serif; font-weight: 600; letter-spacing: -0.01em; }
+::selection { background: #F4C24A; color: var(--ink-0); }
 
+/* ── Header ── */
 header {
   padding: 16px 24px;
-  border-bottom: 1px solid #ebe0c8;
+  border-bottom: 1px solid var(--cream-2);
+  display: flex; align-items: center;
 }
-.brand { font-size: 24px; font-weight: 700; }
-
-main {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 32px 24px;
+.brand { display: flex; align-items: center; gap: 8px; }
+.brand-logo { height: 56px; width: auto; display: block; }
+.brand-helps {
+  font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-2);
 }
 
-h1 { font-size: 36px; margin: 12px 0; line-height: 1.2; }
-h2 { font-size: 22px; margin: 32px 0 8px; }
+/* ── Main content ── */
+main { max-width: 760px; margin: 0 auto; padding: 48px 24px 64px; }
 
-.lede { font-size: 20px; color: #4a3a20; }
+/* ── Hero ── */
+.hero { margin-bottom: 64px; }
+.hero h1 { font-size: clamp(2.2rem, 5vw, 3.2rem); line-height: 1.1; margin: 0 0 20px; }
+.lede { font-size: 1.2rem; color: var(--ink-1); max-width: 52ch; margin: 0 0 32px; }
 
-.download {
-  display: inline-block;
-  margin-top: 16px;
-  padding: 18px 32px;
-  background: #e8a838;
-  color: #2d2114;
-  font-size: 22px;
-  font-weight: 600;
+.download-btn {
+  display: inline-flex; align-items: center; gap: 12px;
+  padding: 20px 36px;
+  background: var(--daisy-orange);
+  color: #fff;
+  font-family: 'Atkinson Hyperlegible', system-ui, sans-serif;
+  font-size: 1.2rem; font-weight: 700;
   text-decoration: none;
-  border-radius: 12px;
-  border: none;
+  border-radius: 999px;
+  border: 3px solid var(--daisy-orange-deep);
+  box-shadow: 0 5px 0 rgba(31,26,18,.18);
+  transition: transform .15s ease, box-shadow .2s ease;
 }
-.download:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+.download-btn:hover { transform: translateY(-2px); box-shadow: 0 7px 0 rgba(31,26,18,.18); }
+.download-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(31,26,18,.18); }
 
-.smartscreen {
-  margin-top: 12px;
-  font-size: 14px;
-  color: #6b5a3e;
-}
+.smartscreen { margin-top: 16px; font-size: 0.85rem; color: var(--ink-2); }
 
-ul { padding-left: 20px; }
-li { margin: 6px 0; }
+/* ── Feature list ── */
+.what { margin-bottom: 48px; }
+.what h2 { font-size: 1.6rem; margin: 0 0 20px; }
+.feature-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 16px; }
+.feature-list li { display: flex; align-items: flex-start; gap: 16px; }
+.feat-icon { font-size: 1.6rem; flex: none; margin-top: 2px; }
 
-a { color: #b56e00; }
+/* ── Privacy / Help sections ── */
+.privacy, .help { margin-bottom: 48px; }
+.privacy h2, .help h2 { font-size: 1.4rem; margin: 0 0 10px; }
+.privacy p, .help p { color: var(--ink-1); max-width: 56ch; margin: 0; }
+a { color: var(--daisy-orange-deep); }
+a:hover { text-decoration: underline; }
 
+/* ── Footer ── */
 footer {
-  border-top: 1px solid #ebe0c8;
-  padding: 16px 24px;
-  display: flex;
-  justify-content: space-between;
-  font-size: 14px;
-  color: #6b5a3e;
-  max-width: 720px;
-  margin: 32px auto 0;
+  border-top: 1px solid var(--cream-2);
+  padding: 20px 24px;
+  display: flex; justify-content: space-between;
+  font-size: 0.85rem; color: var(--ink-2);
+  max-width: 760px; margin: 0 auto;
 }

@@ -3,8 +3,31 @@ import path from 'node:path';
 import { autoUpdater } from 'electron-updater';
 
 let mainWindow: BrowserWindow | null = null;
+let overlayWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let quittingForReal = false;
+
+function createOverlay(): void {
+  const primary = screen.getPrimaryDisplay();
+  const { width } = primary.workAreaSize;
+  const SIZE   = 220;
+  const MARGIN =  16;
+
+  overlayWindow = new BrowserWindow({
+    width: SIZE, height: SIZE,
+    x: width - SIZE - MARGIN, y: MARGIN,
+    frame: false, transparent: true,
+    alwaysOnTop: true, skipTaskbar: true, focusable: false,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true, nodeIntegration: false, sandbox: true,
+    },
+  });
+  overlayWindow.setIgnoreMouseEvents(true);
+  overlayWindow.loadFile(path.join(__dirname, 'renderer', 'overlay.html'));
+  overlayWindow.on('closed', () => { overlayWindow = null; });
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -99,8 +122,16 @@ app.whenReady().then(() => {
     autoUpdater.quitAndInstall();
   });
 
+  // Overlay IPC
+  ipcMain.on('daisy:overlay-show', () => overlayWindow?.show());
+  ipcMain.on('daisy:overlay-hide', () => overlayWindow?.hide());
+  ipcMain.on('daisy:overlay-state', (_e, state: string) => {
+    overlayWindow?.webContents.send('daisy:overlay-state', state);
+  });
+
   createTray();
   createWindow();
+  createOverlay();
   setupAutoUpdate();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
