@@ -3,13 +3,44 @@
   <head>
     <meta charset="utf-8" />
     <title>Daisy Helps</title>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' wss://api.daisyhelps.com ws://localhost:8000; media-src 'self' blob:; script-src 'self'; style-src 'self' 'unsafe-inline';" />
-    <style>
-      body { font-family: -apple-system, system-ui, sans-serif; padding: 40px; }
-    </style>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' wss://api.daisyhelps.com ws://localhost:8000; media-src 'self' blob:; img-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline';" />
+    <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <h1>Daisy Helps</h1>
-    <p>Hello from Electron. Real UI lands in Task 3.</p>
+    <header class="topbar">
+      <div class="brand">Daisy Helps</div>
+      <div class="lang-toggle" id="lang-toggle">
+        <button class="lang-btn active" data-lang="en">EN</button>
+        <button class="lang-btn" data-lang="es">ES</button>
+      </div>
+    </header>
+
+    <main class="stage">
+      <div class="status-pill" id="status-pill">Connecting…</div>
+
+      <div class="captions" id="captions" aria-live="polite"></div>
+
+      <div class="actions">
+        <button id="mic-btn" class="big-btn mic" disabled>
+          <span class="icon">🎙</span>
+          <span class="label">Start talking</span>
+        </button>
+        <button id="screen-btn" class="big-btn screen" disabled>
+          <span class="icon">🖥</span>
+          <span class="label">Show Daisy my screen</span>
+        </button>
+        <button id="stop-btn" class="big-btn stop" disabled>
+          <span class="icon">✋</span>
+          <span class="label">Stop Daisy</span>
+        </button>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <span id="update-badge" class="hidden">Update ready — restart to install</span>
+      <span class="version">v0.1.0</span>
+    </footer>
+
+    <script type="module" src="app.js"></script>
   </body>
 </html>
