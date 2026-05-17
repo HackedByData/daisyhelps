@@ -2,7 +2,7 @@
 
 State of the Daisy Helps backend repo and what's left before the demo.
 
-**Last updated:** 2026-05-16 (after Phase 5 code-side completion)
+**Last updated:** 2026-05-17 (after Render deploy + custom domain live)
 
 ---
 
@@ -15,72 +15,39 @@ State of the Daisy Helps backend repo and what's left before the demo.
 | Phase 2 — Vision (screenshot → Sonnet) | ✅ Wired + smoke PASS (Sonnet correctly described a 128×128 PNG) |
 | Phase 3 — Multi-turn + interrupts | ✅ Wired + smoke PASS (Turn 2 quoted Turn 1 → history preserved) |
 | Phase 4 — Language toggle + text fallback | ✅ Smoke PASS (EN→ES→EN voice flip per-turn) |
-| Phase 5 — `render.yaml`, `test_client.py`, all docs | ✅ Code/docs complete |
-| **Render deploy** | ⏳ Pending — needs your dashboard access |
-| **DNS for api.daisyhelps.com** | ⏳ Pending — needs your registrar access |
-| **Final smoke + phase-5 flag bump** | ⏳ Pending — runs after deploy |
+| Phase 5 — click-indicator + clear_indicator wire messages | ✅ Code complete; `phase_name: "click-indicator"` |
+| **Render deploy** | ✅ Live at https://daisyhelps-backend.onrender.com (starter plan, oregon) |
+| **DNS for api.daisyhelps.com** | ✅ Cloudflare CNAME → daisyhelps-backend.onrender.com, TLS issued |
 | Browser audio verification (mic, real screenshot, interrupt by ear) | ⏳ Pending — manual |
 | Persona / prompt iteration (plan Task 26) | ⏳ Pending — needs voice demos to judge |
+| Desktop Electron client | 🔄 In progress on `main` (separate concern from backend deploy) |
 
-`backend/readiness.py` currently reports `phase: 4, phase_name: "language-text-verified"`. It will bump to `phase: 5, phase_name: "deployed"` after the final smoke.
+`backend/readiness.py` reports `phase: 5, phase_name: "click-indicator"`. Deployment is orthogonal to the phase axis — both `https://daisyhelps-backend.onrender.com/healthz` and `https://api.daisyhelps.com/healthz` return `{"status":"ok"}`.
 
 **Tests:** 29 unit tests pass (`pytest -q`). Coverage: VAD, LLM router, session, WS messages.
+
+## Deploy reference
+
+- Render service ID: `srv-d84gqc7avr4c73d3aspg`
+- Render dashboard: https://dashboard.render.com/web/srv-d84gqc7avr4c73d3aspg
+- Cloudflare zone: `daisyhelps.com` (zone id `7e0f7382aea0bfa0e538c6165fd3bd02`)
+- CNAME: `api` → `daisyhelps-backend.onrender.com`, proxied=false, TTL 300
+- Region: oregon · Plan: starter ($7/mo) · Python 3.11 (via `PYTHON_VERSION` env var)
+- Auto-deploy: enabled on `main` branch commits
 
 ---
 
 ## Remaining tasks
 
-### 1. Deploy to Render (plan Task 32, ~10 min)
+### Final end-to-end voice smoke (plan Task 36, ~10 min, **manual**)
 
-1. Sign in at https://dashboard.render.com.
-2. **New → Blueprint**, point at the GitHub repo. Render reads `render.yaml` automatically (Python 3.11, `pip install -r requirements.txt`, `uvicorn ... --host 0.0.0.0 --port $PORT`, healthcheck `/healthz`, plan: starter).
-3. In **Service → Environment**, set the 5 secrets (they live in `.env` locally; `render.yaml` declares them with `sync: false`):
-   - `ANTHROPIC_API_KEY`
-   - `GROQ_API_KEY`
-   - `ELEVENLABS_API_KEY`
-   - `ELEVENLABS_VOICE_ID_EN`
-   - `ELEVENLABS_VOICE_ID_ES`
+Now that the backend is deployed, run the demo by voice end-to-end:
 
-   `LOG_LEVEL=INFO` comes from `render.yaml` already.
-4. Watch the build (torch wheel download ~30s, Silero bundles its model).
-5. Verify the Render-supplied URL:
-   ```bash
-   curl https://<service>.onrender.com/healthz
-   # → {"status":"ok"}
-   ```
-
-### 2. Configure `api.daisyhelps.com` DNS (plan Task 33, ~5 min + propagation)
-
-1. Render service → **Settings → Custom Domains** → add `api.daisyhelps.com`. Render gives you a CNAME target.
-2. At the daisyhelps.com registrar, add DNS:
-   - Type: `CNAME`
-   - Name: `api`
-   - Value: (the Render-supplied target)
-   - TTL: 300
-3. Wait ~5 min for DNS + TLS cert issuance.
-4. Verify:
-   ```bash
-   curl https://api.daisyhelps.com/healthz
-   # → {"status":"ok"}
-   ```
-
-### 3. Final end-to-end smoke + phase-5 flag bump (plan Task 36, ~10 min)
-
-After deploy + DNS:
-
-1. Open `https://api.daisyhelps.com/test` in a browser.
+1. Open `https://api.daisyhelps.com/test` in a browser (warm `/healthz` first — cold first-WS load is ~10s for Silero).
 2. Run the Zoom-with-doctor flow from `docs/DEMO.md`. Should complete in under 5 minutes.
 3. Validate the 13 done-criteria from spec section 13.
-4. Bump `backend/readiness.py`:
-   ```python
-   "phase": 5,
-   "phase_name": "deployed",
-   ```
-5. ```bash
-   git add backend/readiness.py
-   git commit -m "phase-5: deployed + verified + docs finalized"
-   git push
-   ```
+
+This is the only step that needs human ears (Daisy's voice cadence, interrupt latency by ear, prompt-iteration judgment).
 
 ---
 
@@ -111,10 +78,9 @@ Don't over-tune. Stop when 3 consecutive runs go smoothly. Each tweak is a separ
 
 - **`NavigEase_Requirements_Document.docx`** at the repo root was pushed by a teammate (Niya Paul, ngpaul@uci.edu) and is for a different project. It's preserved in history. Decide whether to keep, move, or `git rm` in a follow-up commit.
 - **Untracked files** (intentionally not committed):
-  - `.env` — gitignored, has real secrets
+  - `.env` — gitignored, has real secrets (now also includes `RENDER_API_KEY` + `CLOUDFLARE_API_TOKEN` for deploy ops)
   - `rosa-claude-code-prompt.md` — the original source prompt the rebrand came from
-  - `elevenlabs-voice-prompt.md` — appears to be your working notes from setting voice IDs
-- **Stray `XAI_API_KEY`** in `.env` — not used by this app, harmless, can delete
+  - `elevenlabs-voice-prompt.md` — working notes from setting voice IDs
 
 ---
 
