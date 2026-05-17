@@ -704,6 +704,12 @@ function App() {
   const onConsentYes = () => { void daisy.respondConsent(true); };
   const onConsentNo  = () => { void daisy.respondConsent(false); };
 
+  const onHandoffConfirmed = () => {
+    daisy.dismissHandoff();                              // hook clears handoffNeeded
+    window.daisyAPI?.shareScreenRememberedSet?.(true);   // main persists + broadcasts
+    window.daisyAPI?.hideMainWindow?.();                 // main hides big window + fires overlay pulse
+  };
+
   // Surface the live consent prompt from the backend (or the manual tweak override)
   const consentVisible = daisy.consentReason !== null || t.showConsent;
   const consentReasonText = daisy.consentReason ?? (lang === 'en'
@@ -816,6 +822,10 @@ function App() {
           onYes={onConsentYes}
           onNo={onConsentNo}
         />
+      )}
+
+      {daisy.handoffNeeded && screen === 'conversation' && (
+        <HandoffModal lang={lang} onConfirm={onHandoffConfirmed} />
       )}
 
       {micPromptOpen && (
