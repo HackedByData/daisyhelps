@@ -11,6 +11,7 @@ protocol.registerSchemesAsPrivileged([
 let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
 let indicatorWindow: BrowserWindow | null = null;
+let subtitleWindow: BrowserWindow | null = null;
 let indicatorClearTimer: NodeJS.Timeout | null = null;
 let tray: Tray | null = null;
 let quittingForReal = false;
@@ -73,6 +74,38 @@ function createIndicator(): void {
   indicatorWindow.setIgnoreMouseEvents(true, { forward: true });
   indicatorWindow.loadFile(path.join(__dirname, 'renderer', 'indicator.html'));
   indicatorWindow.on('closed', () => { indicatorWindow = null; });
+}
+
+function createSubtitle(): void {
+  // Pill-shaped subtitle banner anchored below the overlay. Fixed size, fully
+  // click-through, alwaysOnTop. Stays alive for the app lifetime; toggling
+  // visibility is show()/hide() rather than destroy/recreate.
+  const SUB_W = 320;
+  const SUB_H = 44;
+  const primary = screen.getPrimaryDisplay();
+  // Initial position is recomputed by repositionSubtitle() right after creation
+  // (and again whenever the overlay moves). The values here just have to be valid.
+  const x = primary.bounds.x + 16;
+  const y = primary.bounds.y + 16;
+
+  subtitleWindow = new BrowserWindow({
+    width: SUB_W, height: SUB_H,
+    x, y,
+    useContentSize: true,
+    frame: false, transparent: true,
+    alwaysOnTop: true, skipTaskbar: true,
+    focusable: false, resizable: false,
+    minimizable: false, maximizable: false, fullscreenable: false,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true, nodeIntegration: false, sandbox: true,
+    },
+  });
+  subtitleWindow.setAlwaysOnTop(true, 'screen-saver');
+  subtitleWindow.setIgnoreMouseEvents(true);
+  subtitleWindow.loadFile(path.join(__dirname, 'renderer', 'subtitle.html'));
+  subtitleWindow.on('closed', () => { subtitleWindow = null; });
 }
 
 function createWindow(): void {
@@ -244,6 +277,7 @@ app.whenReady().then(() => {
   createWindow();
   createOverlay();
   createIndicator();
+  createSubtitle();
   setupAutoUpdate();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
