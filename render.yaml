@@ -20,3 +20,20 @@ services:
         sync: false
       - key: LOG_LEVEL
         value: INFO
+
+  - type: web
+    name: daisyhelps-landing
+    runtime: static
+    buildCommand: ""
+    staticPublishPath: ./landing
+    routes:
+      - type: redirect
+        source: /download
+        destination: https://github.com/HackedByData/daisyhelps/releases/latest/download/DaisyHelps-Setup.exe
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
