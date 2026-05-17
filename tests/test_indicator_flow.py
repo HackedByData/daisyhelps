@@ -196,3 +196,48 @@ def test_locator_returns_none_no_indicator(monkeypatch):
         asyncio.run(asyncio.wait_for(session.current_indicator_task, timeout=2.0))
 
     assert _frames_of_type(ws, "click_indicator") == []
+
+
+def test_indicator_fires_even_when_tts_fails(monkeypatch):
+    """TTS failure (e.g. ElevenLabs 401) must not suppress the click indicator.
+
+    The indicator is an additive visual cue derived from the LLM response and the
+    screenshot; it does not depend on TTS audio reaching the user. Wiring it
+    behind the TTS try-frame would mean every TTS-down day silently drops
+    indicator pointers — exactly the user-reported regression.
+    """
+    # LLM yields a click-intent phrase; TTS will raise on first call.
+    async def fake_llm(history, text, image_bytes, language):
+        yield "Click the blue Join button."
+
+    async def failing_tts(text_stream, language):
+        # Drain the text stream so the LLM partials still emit (mirrors the
+        # real failure mode: ElevenLabs accepts text but the synth call 401s
+        # before yielding audio bytes).
+        async for _ in text_stream:
+            pass
+        raise RuntimeError("ElevenLabs 401 Unauthorized")
+        yield b""  # unreachable; keeps this a generator
+
+    monkeypatch.setattr(main_mod, "stream_response", fake_llm)
+    monkeypatch.setattr(main_mod, "stream_tts", failing_tts)
+
+    session = Session(session_id=uuid4())
+    session.set_screenshot(_fake_png(1920, 1080))
+    ws = AsyncMock()
+
+    fake_target = ClickTarget(x=842, y=537, ref_width=1920, ref_height=1080, label="Join button")
+    fake_locate = AsyncMock(return_value=fake_target)
+    monkeypatch.setattr(main_mod, "locate_click_target", fake_locate)
+
+    asyncio.run(_run_turn(ws, session, utterance_audio=None, user_text="where do I click?"))
+
+    if session.current_indicator_task is not None:
+        asyncio.run(asyncio.wait_for(session.current_indicator_task, timeout=2.0))
+
+    indicators = _frames_of_type(ws, "click_indicator")
+    assert len(indicators) == 1, (
+        f"expected click_indicator to fire despite TTS failure, "
+        f"got frames: {_frame_types(ws)}"
+    )
+    assert indicators[0]["x"] == 842 and indicators[0]["y"] == 537

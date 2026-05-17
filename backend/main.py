@@ -339,17 +339,32 @@ async def _run_turn(
                 await websocket.send_json(daisy_text_msg(delta, partial=True))
                 yield delta
 
-        # TTS
+        # TTS — best-effort. A failure here (e.g. ElevenLabs 401 on free tier)
+        # must not abort the rest of the turn: the user still needs the final
+        # daisy_text frame, the click_indicator pointer, and a clean return to
+        # idle. Without this guard, every TTS-down moment silently drops the
+        # click pointer because the emit call below was unreachable.
         session.set_status("speaking")
         await websocket.send_json(status_msg("speaking"))
 
         seq = 0
-        async for audio_chunk in stream_tts(llm_stream_with_emit(), session.language):
-            b64 = base64.standard_b64encode(audio_chunk).decode("ascii")
-            await websocket.send_json(audio_chunk_msg(b64, sequence=seq))
-            seq += 1
+        try:
+            async for audio_chunk in stream_tts(llm_stream_with_emit(), session.language):
+                b64 = base64.standard_b64encode(audio_chunk).decode("ascii")
+                await websocket.send_json(audio_chunk_msg(b64, sequence=seq))
+                seq += 1
+        except asyncio.CancelledError:
+            raise
+        except Exception as tts_exc:
+            logger.warning(f"TTS failed mid-turn ({tts_exc}); continuing with indicator + cleanup")
+            try:
+                await websocket.send_json(error_msg("tts_failed", str(tts_exc)))
+            except Exception:
+                pass
 
-        # Final daisy_text frame (non-partial) with full text
+        # Final daisy_text frame (non-partial) with full text. May be partial
+        # if TTS died before the LLM stream fully drained — that's acceptable:
+        # the captions already showed each delta as it arrived.
         full = "".join(llm_text_acc)
         await websocket.send_json(daisy_text_msg(full, partial=False))
         session.append_assistant(full)
