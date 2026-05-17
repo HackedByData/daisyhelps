@@ -1,0 +1,39 @@
+appId: com.daisyhelps.app
+productName: DaisyHelps
+copyright: Copyright © 2026 Daisy Helps
+artifactName: DaisyHelps-Setup-${version}.${ext}
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - package.json
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+  signtoolOptions:
+    publisherName: Daisy Helps
+    # Code signing intentionally omitted at v1 — users will see a SmartScreen
+    # warning. Add `certificateFile` and `certificatePassword` here when an EV
+    # cert is purchased.
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Daisy Helps
+  include: build/installer.nsh
+  uninstallDisplayName: Daisy Helps ${version}
+
+publish:
+  provider: github
+  owner: HackedByData
+  repo: daisyhelps
+  releaseType: release
