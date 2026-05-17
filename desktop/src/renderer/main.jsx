@@ -543,22 +543,6 @@ function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // DEV-ONLY: Ctrl+Shift+I fires a fake click_indicator at center-screen so
-  // the daisy pointer overlay can be exercised without round-tripping through
-  // the backend. Remove before shipping.
-  useEffect(() => {
-    function onKey(e) {
-      if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i')) {
-        e.preventDefault();
-        window.daisyAPI?.showIndicator?.({
-          x: 800, y: 500, refW: 1600, refH: 900, label: 'Mail icon',
-        });
-      }
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
   // ─────────────────────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────────────────────

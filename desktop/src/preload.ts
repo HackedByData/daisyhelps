@@ -38,4 +38,6 @@ contextBridge.exposeInMainWorld('daisyAPI', {
   onShowIndicator: (cb: (args: { x: number; y: number; label?: string }) => void) => {
     ipcRenderer.on('daisy:show-indicator', (_e, args) => cb(args));
   },
+  indicatorSetPassthrough: (passthrough: boolean) =>
+    ipcRenderer.send('daisy:indicator-set-passthrough', passthrough),
 });

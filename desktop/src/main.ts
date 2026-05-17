@@ -67,7 +67,10 @@ function createIndicator(): void {
   });
   // alwaysOnTop level: 'screen-saver' keeps it above fullscreen apps on Windows
   indicatorWindow.setAlwaysOnTop(true, 'screen-saver');
-  indicatorWindow.setIgnoreMouseEvents(true);
+  // forward: true lets the renderer see mousemove events for hit-testing the
+  // pointer (so we can toggle passthrough off when the cursor is over the
+  // daisy and let the user click it). Click-through everywhere else.
+  indicatorWindow.setIgnoreMouseEvents(true, { forward: true });
   indicatorWindow.loadFile(path.join(__dirname, 'renderer', 'indicator.html'));
   indicatorWindow.on('closed', () => { indicatorWindow = null; });
 }
@@ -210,6 +213,16 @@ app.whenReady().then(() => {
   ipcMain.on('daisy:clear-indicator', () => {
     if (indicatorClearTimer) { clearTimeout(indicatorClearTimer); indicatorClearTimer = null; }
     indicatorWindow?.hide();
+    // Restore click-through-with-forwarding for the next time the window is shown
+    indicatorWindow?.setIgnoreMouseEvents(true, { forward: true });
+  });
+  // Renderer asks main to (un)cover the screen for clicks. While the cursor is
+  // over the daisy pointer the window captures mouse events so it can be
+  // clicked; otherwise clicks pass through to whatever app is underneath.
+  ipcMain.on('daisy:indicator-set-passthrough', (_e, passthrough: boolean) => {
+    if (!indicatorWindow) return;
+    if (passthrough) indicatorWindow.setIgnoreMouseEvents(true, { forward: true });
+    else             indicatorWindow.setIgnoreMouseEvents(false);
   });
 
   // Serve renderer files via app:// so Babel's XHR (used for src="*.jsx") works

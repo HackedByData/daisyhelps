@@ -1,0 +1,88 @@
+/* Full-screen click-through pointer overlay. The window itself ignores
+   mouse events (setIgnoreMouseEvents on the BrowserWindow), so this CSS
+   only worries about visuals. Body is locked to viewport size to avoid
+   Aero Snap rendering quirks on Windows. */
+*, *::before, *::after { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  width: 100vw; height: 100vh;
+  max-width: 100vw; max-height: 100vh;
+  background: transparent;
+  overflow: hidden;
+  pointer-events: none;          /* belt-and-suspenders alongside setIgnoreMouseEvents */
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, Segoe UI, sans-serif;
+  color: #1F1A12;
+}
+
+:root {
+  --daisy-orange: #ED8B33;
+  --daisy-yellow: #F4C24A;
+  --daisy-green:  #2D8659;
+  --cream-0:      #FBF7EE;
+}
+
+.pointer {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 96px; height: 96px;
+  transform: translate(-50%, -50%);
+  display: none;                 /* shown once the first show-indicator arrives */
+  align-items: center; justify-content: center;
+  pointer-events: none;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.25));
+}
+.pointer.is-visible { display: flex; }
+
+.pointer__daisy {
+  position: absolute;
+  width: 96px; height: 96px;
+  object-fit: contain;
+  user-select: none;
+  animation: daisy-bob 1.8s ease-in-out infinite;
+}
+
+/* Two concentric expanding rings to draw the eye to the target. */
+.pointer__ring {
+  position: absolute;
+  width: 96px; height: 96px;
+  border-radius: 50%;
+  border: 4px solid var(--daisy-orange);
+  opacity: 0;
+  animation: ripple 2.2s ease-out infinite;
+}
+.pointer__ring:nth-child(2) {
+  border-color: var(--daisy-yellow);
+  animation-delay: 1.1s;
+}
+
+@keyframes ripple {
+  0%   { transform: scale(0.55); opacity: 0.75; }
+  100% { transform: scale(2.1);  opacity: 0;    }
+}
+@keyframes daisy-bob {
+  0%, 100% { transform: translateY(0)    scale(1);    }
+  50%      { transform: translateY(-3px) scale(1.04); }
+}
+
+/* Label bubble — appears to the lower-right of the pointer. */
+.pointer__label {
+  position: absolute;
+  left: 78px; top: 64px;
+  max-width: 260px;
+  padding: 8px 14px;
+  background: var(--cream-0);
+  color: #1F1A12;
+  border: 2px solid var(--daisy-orange);
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  display: none;                 /* shown only when a label is provided */
+}
+.pointer__label.is-visible { display: inline-block; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pointer__daisy, .pointer__ring { animation: none !important; }
+}

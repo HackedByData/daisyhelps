@@ -57,6 +57,7 @@ export interface DaisyAPI {
   showIndicator(args: { x: number; y: number; refW: number; refH: number; label?: string }): void;
   clearIndicator(): void;
   onShowIndicator(cb: (args: { x: number; y: number; label?: string }) => void): void;
+  indicatorSetPassthrough(passthrough: boolean): void;
 }
 
 declare global {
