@@ -94,7 +94,10 @@ async function pickScreen(
       return null;
     });
     picker.on('closed', () => {
-      // Fallback: if user closes without choosing, resolve to first source
+      // Clean up the handleOnce in case the user closed without choosing
+      ipcMain.removeHandler('picker:choose');
+      // Fallback: if user closes without choosing, resolve to first source.
+      // (If picker:choose already fired, the promise is already settled — this no-ops.)
       resolve(sources[0]);
     });
   });
