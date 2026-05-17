@@ -87,6 +87,13 @@ function useDaisyBackend() {
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
   const subtitlesEnabledRef = useRef(true);
   useEffect(() => { subtitlesEnabledRef.current = subtitlesEnabled; }, [subtitlesEnabled]);
+  const [shareScreenRemembered, setShareScreenRemembered] = useState(false);
+  const shareScreenRememberedRef = useRef(false);
+  useEffect(() => { shareScreenRememberedRef.current = shareScreenRemembered; }, [shareScreenRemembered]);
+  // Hook-owned. Becomes true when a screenshot was just sent successfully
+  // AND share_screen_remembered was false at that moment. App reads this
+  // and renders HandoffModal when true.
+  const [handoffNeeded, setHandoffNeeded] = useState(false);
   // Ref so we can read latest values inside the audio_end handler closure.
   const daisyTextRef = useRef('');
   useEffect(() => { daisyTextRef.current = daisyText; }, [daisyText]);
@@ -222,16 +229,47 @@ function useDaisyBackend() {
             // Conversational continuation: if Daisy ended with a question and
             // isn't currently pointing the user to click something, auto-start
             // listening so the user doesn't have to click the daisy each turn.
+            //
+            // CRITICAL: `audio_end` fires when the backend finishes *streaming*
+            // TTS chunks over the WS, not when those chunks finish *playing* on
+            // the user's speakers. There can be several seconds of audio still
+            // queued in the playback AudioContext. If we start the mic before
+            // that drains, the mic captures Daisy's own voice → backend VAD
+            // treats it as speech → Whisper transcribes (often hallucinating
+            // words on near-silence) → LLM responds → audio_end fires again →
+            // loop forever without any user input. Wait until the queued audio
+            // has actually played out, plus a buffer for speaker hardware to
+            // drain, before opening the mic.
             {
               const text = (daisyTextRef.current || '').trim();
               const endsWithQuestion = /[?¿]\s*$/.test(text);
               if (endsWithQuestion && !clickHintRef.current) {
-                setTimeout(() => { void startTalkingRef.current?.(); }, 500);
+                const ctx = playbackCtxRef.current;
+                const remainingMs = ctx
+                  ? Math.max(0, (playbackTimeRef.current - ctx.currentTime) * 1000)
+                  : 0;
+                setTimeout(() => { void startTalkingRef.current?.(); }, remainingMs + 800);
               }
             }
             break;
           case 'screenshot_request':
-            setConsentReason(msg.reason ?? '');
+            if (shareScreenRememberedRef.current) {
+              // Auto-grant — capture and send without opening the consent modal.
+              // The user already bought into screen sharing; subsequent peeks
+              // are silent.
+              void (async () => {
+                if (!window.daisyAPI?.captureScreen) return;
+                const result = await window.daisyAPI.captureScreen();
+                if ('error' in result) {
+                  console.error('screen capture failed', result.error);
+                  setErrorMsg('Could not capture your screen.');
+                } else {
+                  send({ type: 'screenshot', data: result.pngBase64 });
+                }
+              })();
+            } else {
+              setConsentReason(msg.reason ?? '');
+            }
             break;
           case 'click_indicator':
             // Show a screen-wide daisy pointer at the indicated target, and
@@ -286,6 +324,18 @@ function useDaisyBackend() {
     });
     window.daisyAPI?.onSubtitleEnabledChanged?.((enabled) => {
       if (mounted) setSubtitlesEnabled(!!enabled);
+    });
+    return () => { mounted = false; };
+  }, []);
+
+  // Share-screen-remembered — load initial value + cross-window sync.
+  useEffect(() => {
+    let mounted = true;
+    void window.daisyAPI?.shareScreenRememberedGet?.().then((v) => {
+      if (mounted) setShareScreenRemembered(!!v);
+    });
+    window.daisyAPI?.onShareScreenRememberedChanged?.((v) => {
+      if (mounted) setShareScreenRemembered(!!v);
     });
     return () => { mounted = false; };
   }, []);
@@ -500,6 +550,12 @@ function useDaisyBackend() {
         setErrorMsg('Could not capture your screen.');
       } else {
         send({ type: 'screenshot', data: result.pngBase64 });
+        // First-ever successful screenshot triggers the hand-off ceremony.
+        // App reads handoffNeeded and renders HandoffModal; OK there
+        // persists the flag and hides the big window.
+        if (!shareScreenRememberedRef.current) {
+          setHandoffNeeded(true);
+        }
       }
     }
   }, [send]);
@@ -546,6 +602,8 @@ function useDaisyBackend() {
     send({ type: 'user_text', text });
   }, [send, interruptIfBusy, goodbyeAndQuit]);
 
+  const dismissHandoff = useCallback(() => setHandoffNeeded(false), []);
+
   const clearError = useCallback(() => setErrorMsg(null), []);
 
   return {
@@ -555,6 +613,7 @@ function useDaisyBackend() {
     respondConsent, changeLanguage, endSession, sendUserText, clearError,
     sendScreenshot, primeMicPermission,
     subtitlesEnabled,
+    shareScreenRemembered, handoffNeeded, dismissHandoff,
   };
 }
 
