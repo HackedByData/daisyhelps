@@ -1,99 +1,154 @@
-# TODO
+# TODO — make the tool work end-to-end
 
-State of the Daisy Helps repo. **Phase 6 (desktop + landing) is code-complete and both services are live in production. Only the first public release remains.**
+**The goal:** a stranger visits `daisyhelps.com`, clicks "Download for Windows", runs the installer, launches Daisy, and has a voice conversation that lands on `api.daisyhelps.com`.
 
-**Last updated:** 2026-05-17
+**What's already true** (don't redo):
+- Backend is live at `https://api.daisyhelps.com` (Render `srv-d84gqc7avr4c73d3aspg`, auto-deploys from `main`).
+- Landing site is live at `https://daisyhelps.com` (Render `srv-d84ip8naqgkc73am5cpg`, auto-deploys from `main`).
+- Custom domains for the landing site (`daisyhelps.com`, `www.daisyhelps.com`) are added and verified.
+- `/download` already 301-redirects to `https://github.com/HackedByData/daisyhelps/releases/latest/download/DaisyHelps-Setup.exe`.
+- `desktop/electron-builder.yml` produces a stable filename `DaisyHelps-Setup.exe` (no version suffix), so the redirect target is correct.
+- Release CI workflow (`.github/workflows/release.yml`) is wired to fire on `v*` tags.
+- Desktop app's `WS_BASE` (`desktop/src/renderer/app.ts:4`) is hardcoded to `wss://api.daisyhelps.com`, so it talks to live backend with zero config.
 
----
-
-## Status at a glance
-
-| Area | State |
-|---|---|
-| Phase 0 — Scaffold | ✅ |
-| Phase 1 — Voice loop | ✅ |
-| Phase 2 — Vision | ✅ |
-| Phase 3 — Multi-turn + interrupts | ✅ |
-| Phase 4 — Language toggle + text fallback | ✅ |
-| Phase 5 — Backend deploy + click-indicator | ✅ live at `api.daisyhelps.com` |
-| Phase 6 — Desktop app + landing page | ✅ code complete; landing live at `daisyhelps.com` |
-| Public release (v0.1.0) | ⏳ pending — see "What's left" below |
-
-`backend/readiness.py` is still on `phase: 5, phase_name: "click-indicator"`. It bumps to `phase: 6, phase_name: "desktop-launch"` after v0.1.0 is cut.
-
-**Tests:** `pytest -q` — 29 unit tests on the backend (all green). `cd desktop && npm test` — vitest on the audio utilities.
+**What's missing:** no GitHub Release exists yet → `daisyhelps.com/download` 301s to a 404.
 
 ---
 
-## Live production state (as of 2026-05-17)
+## A. Test the app on your local machine RIGHT NOW (no release needed)
 
-| URL | What it serves | Backed by |
-|---|---|---|
-| `https://api.daisyhelps.com` | FastAPI + WebSocket backend (`/ws/{session_id}`, `/healthz`, `/api/status`, `/test`) | Render web service `srv-d84gqc7avr4c73d3aspg` (commit `37974bd`) |
-| `https://daisyhelps.com` | Apex → 301 → `www.daisyhelps.com` (Render-managed redirect) | Render static site `srv-d84ip8naqgkc73am5cpg` |
-| `https://www.daisyhelps.com` | Landing page (`landing/index.html`) | same static site |
-| `https://daisyhelps.com/download` | 301 → `…/releases/latest/download/DaisyHelps-Setup.exe` | static-site route `rdr-d84ismgjo89c73atlb70` |
+Two ways, pick whichever — both connect to the live `api.daisyhelps.com` backend.
 
-Both services auto-deploy on push to `main`. Custom domains for the static site (`daisyhelps.com`, `www.daisyhelps.com`) are added and **verified** in Render. Cloudflare zone `daisyhelps.com` holds the DNS records.
+### Option A1 — dev mode (fastest, ~30s to launch)
 
-Security headers (`X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`) are applied to the static site via the Render API (`hdr-d84isofavr4c73d4juo0`, `hdr-d84isod7vvec73fadmhg`).
-
-**Caveat:** `daisyhelps.com/download` currently 404s **at the destination** because no GitHub Release exists yet. The redirect resolves correctly; the file it points at doesn't exist until v0.1.0 ships.
-
----
-
-## What's left (Phase 6 → public launch)
-
-### 1. Cut v0.1.0 — the one thing standing between us and a working `/download`
+Runs the app from source. Best for iterating.
 
 ```powershell
-# from repo root
+cd desktop
+npm start
+```
+
+Expected: Electron window opens within ~5s. Wait for "Ready" status pill (~1–10s — Render cold start the first time, then warm). Walk through `docs/DEMO.md`.
+
+### Option A2 — build and install the real `.exe` (~3 min build + install)
+
+Best for verifying what end users will experience (Start Menu shortcut, tray icon, SmartScreen warning, etc.). The current `desktop/release/DaisyHelps-Setup-0.1.0.exe` is **stale** (built before the renderer rewrite in commit `37974bd`) — rebuild before testing.
+
+```powershell
+cd desktop
+npm run release
+# → desktop/release/DaisyHelps-Setup.exe   (~80MB, takes 1–3 min)
+```
+
+Then run the installer:
+
+```powershell
+.\release\DaisyHelps-Setup.exe
+```
+
+- Windows SmartScreen: **"Windows protected your PC"** → click `More info` → `Run anyway` (this is the unsigned-installer warning we accept at v1; documented on the landing page).
+- Installer prompts for install location → defaults are fine → click Install.
+- Launches "Daisy Helps" from the Start Menu.
+- Verify the demo flow in `docs/DEMO.md` (mic, voice reply, screen capture, interrupt, language toggle, tray-on-close).
+
+### Verification checklist (works for both options)
+
+- [ ] Status pill flips from "Connecting…" → "Ready" within 10s
+- [ ] Mic permission prompt appears on first speak; reply audio plays
+- [ ] "Show Daisy my screen" → native picker → screenshot reaches backend (Daisy says something specific to what's on-screen)
+- [ ] Interrupting Daisy mid-speech cuts off audio within ~200ms
+- [ ] Language toggle flips voice EN ↔ ES on the next reply
+- [ ] (A2 only) Closing the window leaves a tray icon; clicking re-opens
+
+If any step fails, check the Electron devtools console (View → Toggle Developer Tools in the window menu, if enabled — otherwise `npm run dev` instead of `npm start` enables logging).
+
+---
+
+## B. Make the download button work for the public (cut v0.1.0)
+
+After local testing passes, this is the one-command public launch.
+
+### B1 — Tag and push
+
+```powershell
 git tag v0.1.0
 git push origin v0.1.0
 ```
 
-This fires `.github/workflows/release.yml` on `windows-latest`, which:
-- builds the NSIS installer (`DaisyHelps-Setup.exe`, no version suffix — fixed in `afb24d0`)
-- creates a GitHub Release `v0.1.0`
-- uploads `DaisyHelps-Setup.exe` + `latest.yml` (electron-updater feed)
+This fires `.github/workflows/release.yml` on `windows-latest`. The workflow:
+1. Runs `npm run build && electron-builder --win --publish always`
+2. Creates a GitHub Release `v0.1.0`
+3. Uploads `DaisyHelps-Setup.exe` + `latest.yml` (auto-update feed)
 
-After ~5 minutes CI finishes, `https://daisyhelps.com/download` will serve a real installer.
+Watch progress: https://github.com/HackedByData/daisyhelps/actions
 
-### 2. Bump `backend/readiness.py` to phase 6
+### B2 — Verify the public download path end-to-end (~6 min after tag)
 
-After v0.1.0 ships, edit `backend/readiness.py`:
+```powershell
+# Should return HTTP 302 with a location header pointing at the actual release asset URL
+curl -sI https://daisyhelps.com/download
+
+# Follow the redirect and download a real binary (should be ~80MB)
+curl -sL -o test-install.exe https://daisyhelps.com/download
+Get-Item test-install.exe | Select-Object Length
+```
+
+Or in a browser: open https://daisyhelps.com → click "Download for Windows — Free" → installer downloads.
+
+### B3 — Bump backend readiness to phase 6
+
+After v0.1.0 is live, edit `backend/readiness.py`:
 
 ```python
 PHASE = 6
 PHASE_NAME = "desktop-launch"
 ```
 
-Commit, push — auto-deploys to `api.daisyhelps.com`.
+Commit + push — auto-deploys to `api.daisyhelps.com`. Verify:
 
-### 3. Manual smoke of the installed app
+```powershell
+curl https://api.daisyhelps.com/api/status
+# → "phase":6, "phase_name":"desktop-launch"
+```
 
-Run through `docs/DEMO.md` end-to-end on a fresh Windows profile:
-- download from `daisyhelps.com/download` → install → SmartScreen click-through → launch
-- "Help me join a Zoom call with my doctor"
-- "Show Daisy my screen" → native picker → screenshot reaches backend
-- voice reply plays; interrupting mid-speech cancels TTS
-- language toggle flips voice EN ↔ ES
-- close → tray icon remains → re-open from tray
+### B4 — End-to-end stranger-test
+
+On a fresh Windows profile (or a friend's machine — ideally someone non-technical):
+
+- [ ] Open `https://daisyhelps.com` in a fresh browser
+- [ ] Click "Download for Windows — Free"
+- [ ] Installer downloads as `DaisyHelps-Setup.exe`
+- [ ] Double-click → SmartScreen → "More info" → "Run anyway"
+- [ ] Installer completes; "Daisy Helps" appears in Start Menu
+- [ ] Launch → connects to backend within 10s
+- [ ] Run through the Zoom-with-doctor demo successfully
+
+If all six check, **the tool works end-to-end for the public**.
 
 ---
 
-## Carry-forward — deferred items (non-blocking)
+## C. Known caveats users will hit
 
-- **Persona / prompt iteration** — run the demo through the installed desktop app 5+ times; tighten `backend/prompts.py` for "lists multiple steps", jargon, recovery.
-- **AudioWorklet migration** in `desktop/src/renderer/app.ts` (currently uses deprecated `ScriptProcessorNode`, same as the test harness).
-- **ONNX Silero VAD** — replace `silero-vad` + torch with `onnxruntime` to cut ~250MB from the backend deploy footprint.
-- **Migrate `datetime.utcnow()` → `datetime.now(timezone.utc)`** in `backend/session.py` (two call sites).
-- **EV code-signing cert** for the Windows installer (~$300/yr) — skips SmartScreen entirely. Slot in `desktop/electron-builder.yml` `win.signtoolOptions`.
-- **macOS / Linux installers** — electron-builder config exists for Windows; macOS needs Apple Dev cert + notarization, Linux just needs `target: AppImage` + a CI matrix expansion.
-- **Designer pass on icons** — `desktop/build/icon.ico` and `desktop/build/tray-icon.png` are flat-color placeholders.
-- **Retry on TTS / LLM transient errors** in `backend/main.py:_run_turn` — currently emits `turn_failed` once and stops.
-- **Auth / rate limiting** — anyone with the WS URL can connect; middleware before `websocket.accept()`.
+| Issue | Mitigation in place | Fix-it-later |
+|---|---|---|
+| SmartScreen "Unknown publisher" warning | Landing page tells them to click "More info" → "Run anyway" | EV code-signing cert (~$300/yr); slot in `desktop/electron-builder.yml` `win.signtoolOptions` |
+| First WS connect cold-starts Silero VAD (~10s) | Test page or `/healthz` warms the backend; landing page link to status | Replace silero-vad pip package with ONNX (`onnxruntime`); cuts ~250MB from deploy |
+| Mic permission denied → no error visible | Captions surface the error (see `desktop/src/renderer/app.ts` mic-error path) | Already shipped |
+| Windows-only | Documented on landing page | macOS needs Apple Dev cert + notarization; Linux needs `target: AppImage` in `electron-builder.yml` + CI matrix expansion |
+
+---
+
+## D. Deferred (non-blocking — pick up later)
+
+- **Persona / prompt iteration** — run the demo through the installed app 5+ times; tighten `backend/prompts.py` for "lists multiple steps", jargon, recovery.
+- **AudioWorklet migration** in `desktop/src/renderer/app.ts` (currently uses deprecated `ScriptProcessorNode`).
+- **ONNX Silero VAD** — replace torch dep with onnxruntime in `backend/pipeline/vad.py`.
+- **Migrate `datetime.utcnow()` → `datetime.now(timezone.utc)`** in `backend/session.py`.
+- **Retry on transient TTS / LLM errors** in `backend/main.py:_run_turn` — currently emits `turn_failed` once and stops.
+- **Auth / rate limiting** — anyone with the WS URL can connect.
 - **Session persistence** — `SessionStore` is the abstraction; swap to Redis-backed impl.
+- **Designer pass on icons** — `desktop/build/icon.ico` and `desktop/build/tray-icon.png` are flat placeholders.
+- **macOS / Linux installers** — see Caveats table above.
 
 Full deferred-features inventory lives in `CLAUDE.md`.
 
@@ -103,14 +158,13 @@ Full deferred-features inventory lives in `CLAUDE.md`.
 
 | For | Read |
 |---|---|
-| Desktop pivot design | `docs/superpowers/specs/2026-05-16-daisy-helps-desktop-pivot-design.md` |
-| Desktop implementation plan | `docs/superpowers/plans/2026-05-16-daisy-helps-desktop.md` |
+| Local dev / build / release recipes | `docs/RUNBOOK.md` |
+| Demo script (the Zoom-with-doctor flow) | `docs/DEMO.md` |
 | WebSocket protocol contract | `docs/API.md` |
 | System architecture | `docs/ARCHITECTURE.md` |
-| Local dev + env vars + deploy | `docs/RUNBOOK.md` |
 | Why decisions were made | `docs/DECISIONS.md` |
-| The demo script | `docs/DEMO.md` |
 | Feature readiness flags | `backend/readiness.py` (or `GET /api/status`) |
 | Daisy's voice (system prompt) | `backend/prompts.py` |
-| Phase 6 session retro | `PHASE-6-COMPLETION-2026-05-16.md` |
-| Desktop pivot handoff notes | `HANDOFF-desktop-pivot.md` |
+| Desktop client behavior | `desktop/src/renderer/app.ts` |
+| Desktop native bridge | `desktop/src/main.ts`, `desktop/src/preload.ts` |
+| Production infra (service IDs, zones) | memory note `reference_daisy_deploy_infra.md` |
