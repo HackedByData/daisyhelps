@@ -1,0 +1,44 @@
+/* Pill-shaped subtitle banner. Window is fixed 320×44; the pill itself fills
+   the window and the inner text uses translateX for the sliding-window ticker
+   effect. */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0;
+  width: 320px; height: 44px;
+  background: transparent;
+  overflow: hidden;
+  -webkit-user-select: none; user-select: none;
+}
+
+#pill {
+  width: 320px; height: 44px;
+  border-radius: 22px;
+  background: rgba(20, 20, 24, 0.82);
+  color: #fff;
+  font: 16px/1 -apple-system, "Segoe UI", system-ui, sans-serif;
+  display: flex; align-items: center;
+  padding: 0 18px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  transition: opacity 240ms ease;
+}
+#pill:not([hidden]) { opacity: 1; }
+
+.pill__clip {
+  flex: 1 1 auto;
+  overflow: hidden;
+  height: 22px;
+  display: flex; align-items: center;
+}
+
+.pill__text {
+  white-space: nowrap;
+  display: inline-block;
+  transition: transform 120ms linear;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #pill, .pill__text { transition: none !important; }
+}
